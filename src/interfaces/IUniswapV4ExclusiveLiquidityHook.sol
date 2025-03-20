@@ -3,11 +3,18 @@ pragma solidity ^0.8.0;
 
 import 'openzeppelin-contracts/contracts/interfaces/IERC20.sol';
 import 'uniswap/v4-core/interfaces/IHooks.sol';
+import 'uniswap/v4-core/types/Currency.sol';
 
 interface IUniswapV4ExclusiveLiquidityHook is IHooks {
-  error NotWhitelistedOperator(address operator);
+  event UpdateRouter(address router, bool grantOrRevoke);
 
-  error NotWhitelistedRouter(address router);
+  error KSHookNotRouter(address router);
 
-  function claimSurplusTokens(IERC20[] calldata tokens, address recipient) external;
+  error InvalidSurplusRecipient();
+
+  /**
+   * @notice Claim surplus tokens accrued by the hook
+   * @param ids the addresses of the tokens to claim, padded with 0s: `uint256(uint160(token))`
+   */
+  function claimSurplusTokens(uint256[] calldata ids) external;
 }

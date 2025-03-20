@@ -3,34 +3,43 @@ pragma solidity ^0.8.0;
 
 import './interfaces/IUniswapV4ExclusiveLiquidityHook.sol';
 
-import 'openzeppelin-contracts/contracts/access/Ownable.sol';
+import 'uniswap/v4-core/types/Currency.sol';
 import 'uniswap/v4-periphery/utils/BaseHook.sol';
 
-contract UniswapV4ExclusiveLiquidityHook is IUniswapV4ExclusiveLiquidityHook, BaseHook, Ownable {
-  mapping(address => bool) public whitelistedOperators;
+import {KSRescueV2, Ownable} from 'ks-growth-utils-sc/KSRescueV2.sol';
 
-  mapping(address => bool) public whitelistedRouters;
+contract UniswapV4ExclusiveLiquidityHook is IUniswapV4ExclusiveLiquidityHook, BaseHook, KSRescueV2 {
+  mapping(address => bool) public routers;
 
-  constructor(IPoolManager _poolManager, address initialOwner)
-    BaseHook(_poolManager)
-    Ownable(initialOwner)
-  {}
+  address surplusRecipient;
 
-  modifier onlyWhitelistedOperator() {
-    require(whitelistedOperators[msg.sender], NotWhitelistedOperator(msg.sender));
-    _;
-  }
+  constructor(
+    IPoolManager _poolManager,
+    address initialOwner,
+    address[] memory initialOperators,
+    address[] memory initialGuardians
+  ) BaseHook(_poolManager) Ownable(initialOwner) {
+    for (uint256 i = 0; i < initialOperators.length; i++) {
+      operators[initialOperators[i]] = true;
 
-  function whitelistOperators(address[] calldata operators, bool status) external onlyOwner {
-    for (uint256 i = 0; i < operators.length; i++) {
-      whitelistedOperators[operators[i]] = status;
+      emit UpdateOperator(initialOperators[i], true);
+    }
+    for (uint256 i = 0; i < initialGuardians.length; i++) {
+      guardians[initialGuardians[i]] = true;
+
+      emit UpdateGuardian(initialGuardians[i], true);
     }
   }
 
-  function whitelistRouters(address[] calldata routers, bool status) external onlyOwner {
-    for (uint256 i = 0; i < routers.length; i++) {
-      whitelistedRouters[routers[i]] = status;
-    }
+  function updateRouter(address router, bool grantOrRevoke) external onlyOwner {
+    routers[router] = grantOrRevoke;
+
+    emit UpdateRouter(router, grantOrRevoke);
+  }
+
+  function updateSurplusRecipient(address recipient) external onlyOwner {
+    require(recipient != address(0), InvalidSurplusRecipient());
+    surplusRecipient = recipient;
   }
 
   function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -52,17 +61,19 @@ contract UniswapV4ExclusiveLiquidityHook is IUniswapV4ExclusiveLiquidityHook, Ba
     });
   }
 
-  function claimSurplusTokens(IERC20[] calldata tokens, address recipient)
-    external
-    onlyWhitelistedOperator
-  {
-    if (recipient == address(0)) {
-      recipient = msg.sender;
-    }
-    for (uint256 i = 0; i < tokens.length; i++) {
-      uint256 balance = tokens[i].balanceOf(address(this));
+  function claimSurplusTokens(uint256[] calldata ids) public onlyOperator {
+    poolManager.unlock(abi.encode(ids));
+  }
+
+  function unlockCallback(bytes calldata data) external returns (bytes memory) {
+    uint256[] memory ids = abi.decode(data, (uint256[]));
+
+    for (uint256 i = 0; i < ids.length; i++) {
+      uint256 id = ids[i];
+      uint256 balance = poolManager.balanceOf(address(this), id);
       if (balance > 0) {
-        tokens[i].transfer(recipient, balance);
+        poolManager.burn(address(this), id, balance);
+        poolManager.take(Currency.wrap(address(uint160(id))), surplusRecipient, balance);
       }
     }
   }
