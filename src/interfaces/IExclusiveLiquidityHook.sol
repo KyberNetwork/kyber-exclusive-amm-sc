@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import 'openzeppelin-contracts/contracts/interfaces/IERC20.sol';
-import 'uniswap/v4-core/interfaces/IHooks.sol';
-import 'uniswap/v4-core/types/Currency.sol';
-
-interface IUniswapV4ExclusiveLiquidityHook is IHooks {
+interface IExclusiveLiquidityHook {
   event UpdateRouter(address router, bool grantOrRevoke);
 
-  error KSHookNotRouter(address router);
+  error KSHookNotRouter(address sender);
 
   error InvalidSurplusRecipient();
+
+  error KSHookExactOutputDisabled();
+
+  error KSHookExpiredSignature();
+
+  error KSHookInvalidSignature();
+
+  error ExceededMaxAmountIn();
 
   /**
    * @notice Claim surplus tokens accrued by the hook
