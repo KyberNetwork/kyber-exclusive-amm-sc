@@ -24,17 +24,16 @@ contract UniswapV4ExclusiveLiquidityHook is
   IUnlockCallback,
   KSRescueV2
 {
-  int256 internal constant EXCHANGE_RATE_DENOMINATOR = 1e18;
+  mapping(address => bool) public whitelisted;
 
-  mapping(address => bool) public routers;
-
-  address surplusRecipient;
+  address private surplusRecipient;
 
   constructor(
     IPoolManager _poolManager,
     address initialOwner,
     address[] memory initialOperators,
-    address[] memory initialGuardians
+    address[] memory initialGuardians,
+    address initialRecipient
   ) BaseHook(_poolManager) Ownable(initialOwner) {
     for (uint256 i = 0; i < initialOperators.length; i++) {
       operators[initialOperators[i]] = true;
@@ -46,17 +45,25 @@ contract UniswapV4ExclusiveLiquidityHook is
 
       emit UpdateGuardian(initialGuardians[i], true);
     }
+
+    _updateSurplusRecipient(initialRecipient);
   }
 
-  function updateRouter(address router, bool grantOrRevoke) external onlyOwner {
-    routers[router] = grantOrRevoke;
+  function updateWhitelist(address sender, bool grantOrRevoke) external onlyOwner {
+    whitelisted[sender] = grantOrRevoke;
 
-    emit UpdateRouter(router, grantOrRevoke);
+    emit KSHookUpdateWhitelisted(sender, grantOrRevoke);
   }
 
   function updateSurplusRecipient(address recipient) external onlyOwner {
-    require(recipient != address(0), InvalidSurplusRecipient());
+    _updateSurplusRecipient(recipient);
+  }
+
+  function _updateSurplusRecipient(address recipient) internal {
+    require(recipient != address(0), KSHookInvalidSurplusRecipient());
     surplusRecipient = recipient;
+
+    emit KSHookUpdateSurplusRecipient(recipient);
   }
 
   function _beforeSwap(
@@ -65,20 +72,32 @@ contract UniswapV4ExclusiveLiquidityHook is
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-    require(routers[sender], KSHookNotRouter(sender));
+    require(whitelisted[sender], KSHookNotWhitelisted(sender));
     require(params.amountSpecified < 0, KSHookExactOutputDisabled());
     (
-      int256 maxAmountIn,
+      int128 minAmountIn,
+      int128 maxAmountIn,
       int256 maxExchangeRate,
-      uint256 expiryTime,
+      uint32 log2ExchangeRateDenom,
+      uint64 expiryTime,
       address operator,
       bytes memory signature
-    ) = abi.decode(hookData, (int256, int256, uint256, address, bytes));
+    ) = abi.decode(hookData, (int128, int128, int256, uint32, uint64, address, bytes));
     require(block.timestamp <= expiryTime, KSHookExpiredSignature());
     require(
       SignatureChecker.isValidSignatureNow(
         operator,
-        keccak256(abi.encode(key, params.zeroForOne, maxAmountIn, maxExchangeRate, expiryTime)),
+        keccak256(
+          abi.encode(
+            key,
+            params.zeroForOne,
+            minAmountIn,
+            maxAmountIn,
+            maxExchangeRate,
+            log2ExchangeRateDenom,
+            expiryTime
+          )
+        ),
         signature
       ),
       KSHookInvalidSignature()
@@ -93,8 +112,14 @@ contract UniswapV4ExclusiveLiquidityHook is
     BalanceDelta delta,
     bytes calldata hookData
   ) internal override returns (bytes4, int128) {
-    (int256 maxAmountIn, int256 maxExchangeRate,,,) =
-      abi.decode(hookData, (int256, int256, uint256, address, bytes));
+    (
+      int128 minAmountIn,
+      int128 maxAmountIn,
+      int256 maxExchangeRate,
+      uint32 log2ExchangeRateDenom,
+      ,
+      ,
+    ) = abi.decode(hookData, (int128, int128, int256, uint32, uint64, address, bytes));
 
     unchecked {
       int128 amountIn;
@@ -109,9 +134,12 @@ contract UniswapV4ExclusiveLiquidityHook is
         amountOut = delta.amount0();
         currencyOut = key.currency0;
       }
-      require(amountIn <= maxAmountIn, ExceededMaxAmountIn());
+      require(
+        minAmountIn <= amountIn && amountIn <= maxAmountIn,
+        KSHookInvalidAmountIn(minAmountIn, maxAmountIn, amountIn)
+      );
 
-      int256 maxAmountOut = amountIn * maxExchangeRate / EXCHANGE_RATE_DENOMINATOR;
+      int256 maxAmountOut = (amountIn * maxExchangeRate) >> log2ExchangeRateDenom;
       int256 surplusAmount = maxAmountOut < amountOut ? amountOut - maxAmountOut : int256(0);
       if (surplusAmount > 0) {
         poolManager.mint(

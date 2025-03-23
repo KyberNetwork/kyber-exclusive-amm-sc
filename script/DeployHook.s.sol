@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import './Base.s.sol';
+
+import {IPoolManager} from 'uniswap/v4-core/interfaces/IPoolManager.sol';
+import {Hooks} from 'uniswap/v4-core/libraries/Hooks.sol';
+import {HookMiner} from 'uniswap/v4-periphery/utils/HookMiner.sol';
+
+import 'src/UniswapV4ExclusiveLiquidityHook.sol';
+
+/// @notice Mines the address and deploys the Counter.sol Hook contract
+contract DeployHookScript is BaseScript {
+  address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
+
+  function setUp() public {}
+
+  function run() public {
+    uint256 chainId;
+    assembly {
+      chainId := chainid()
+    }
+
+    IPoolManager poolManager =
+      IPoolManager(_readAddress('script/configs/pool-manager.json', chainId));
+    address initialOwner = _readAddress('script/configs/owner.json', chainId);
+    address[] memory initialOperators = _readAddressArray('script/configs/operators.json', chainId);
+    address[] memory initialGuardians = _readAddressArray('script/configs/guardians.json', chainId);
+    address initialRecipient = _readAddress('script/configs/surplus-recipient.json', chainId);
+
+    console.log('poolManager:', address(poolManager));
+    console.log('initialOwner:', initialOwner);
+    console.log('initialOperators:', initialOperators[0]);
+    console.log('initialGuardians:', initialGuardians[0]);
+    console.log('initialRecipient:', initialRecipient);
+
+    // hook contracts must have specific flags encoded in the address
+    uint160 flags =
+      uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+
+    bytes memory constructorArgs =
+      abi.encode(poolManager, initialOwner, initialOperators, initialGuardians, initialRecipient);
+
+    // Mine a salt that will produce a hook address with the correct flags
+    (address hookAddress, bytes32 salt) = HookMiner.find(
+      CREATE2_DEPLOYER, flags, type(UniswapV4ExclusiveLiquidityHook).creationCode, constructorArgs
+    );
+
+    // Deploy the hook using CREATE2
+    vm.broadcast();
+    UniswapV4ExclusiveLiquidityHook counter = new UniswapV4ExclusiveLiquidityHook{salt: salt}(
+      IPoolManager(poolManager), initialOwner, initialOperators, initialGuardians, initialRecipient
+    );
+    require(address(counter) == hookAddress, 'CounterScript: hook address mismatch');
+  }
+}
