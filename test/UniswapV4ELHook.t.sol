@@ -439,7 +439,7 @@ contract UniswapV4ELHookTest is Deployers {
       expiryTime
     );
     if (amountSpecified % 2 == 0) {
-      amountSpecified = -bound(amountSpecified, 0, minAmountIn - 1);
+      amountSpecified = -bound(amountSpecified, 1, minAmountIn - 1);
     } else {
       amountSpecified = -bound(amountSpecified, maxAmountIn + 1, type(int256).max);
     }
@@ -562,8 +562,8 @@ contract UniswapV4ELHookTest is Deployers {
         ? bound(sqrtPriceLimitX96, MIN_PRICE_LIMIT, SQRT_PRICE_1_1 - 100)
         : bound(sqrtPriceLimitX96, SQRT_PRICE_1_1 + 100, MAX_PRICE_LIMIT)
     );
-    minAmountIn = bound(minAmountIn, 0, -amountSpecified);
-    maxAmountIn = bound(maxAmountIn, -amountSpecified, type(int256).max);
+    minAmountIn = bound(minAmountIn, 2, -amountSpecified);
+    maxAmountIn = bound(maxAmountIn, -amountSpecified, type(int256).max - 1);
     maxExchangeRate = bound(maxExchangeRate, 0, type(int256).max / -amountSpecified);
     log2ExchangeRateDenom = uint32(bound(log2ExchangeRateDenom, 0, 256));
     expiryTime = uint64(bound(expiryTime, block.timestamp, block.timestamp + 1e6));
