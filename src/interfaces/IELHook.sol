@@ -3,62 +3,81 @@ pragma solidity ^0.8.0;
 
 interface IELHook {
   /// @notice Thrown when the sender is not whitelisted
-  error KSHookNotWhitelisted(address sender);
+  error ELHookNotWhitelisted(address sender);
 
-  /// @notice Thrown when the new surplus recipient is the zero address
-  error KSHookInvalidSurplusRecipient();
+  /// @notice Thrown when the new address to be updated is the zero address
+  error ELHookInvalidAddress();
 
   /// @notice Thrown when trying to swap in exact output mode
-  error KSHookExactOutputDisabled();
-
-  /// @notice Thrown when the signature is expired
-  error KSHookExpiredSignature();
-
-  /// @notice Thrown when the signature is invalid
-  error KSHookInvalidSignature();
+  error ELHookExactOutputDisabled();
 
   /**
-   * @notice Thrown when the input amount is not within the expected range
-   * @param minAmountIn the minimum input amount
+   * @notice Thrown when the signature is expired
+   * @param expiryTime the expiry time
+   * @param currentTime the current time
+   */
+  error ELHookExpiredSignature(uint256 expiryTime, uint256 currentTime);
+
+  /// @notice Thrown when the signature is invalid
+  error ELHookInvalidSignature();
+
+  /**
+   * @notice Thrown when the input amount is exceeded the maximum amount
    * @param maxAmountIn the maximum input amount
    * @param amountIn the actual input amount
    */
-  error KSHookInvalidAmountIn(int256 minAmountIn, int256 maxAmountIn, int256 amountIn);
+  error ELHookExceededMaxAmountIn(int256 maxAmountIn, int256 amountIn);
 
-  /// @notice Emitted when the amount out is not within the expected range
-  event KSHookUpdateWhitelisted(address indexed sender, bool grantOrRevoke);
+  /// @notice Thrown when the lengths of the arrays are mismatched
+  error ELHookMismatchedArrayLengths();
+
+  /// @notice Emitted when the whitelist status of an address is updated
+  event ELHookWhitelistSender(address indexed sender, bool grantOrRevoke);
+
+  /// @notice Emitted when the signer is updated
+  event ELHookUpdateSigner(address indexed signer);
 
   /// @notice Emitted when the surplus recipient is updated
-  event KSHookUpdateSurplusRecipient(address indexed surplusRecipient);
+  event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
 
   /// @notice Emitted when a surplus amount of token is seized
-  event KSHookSeizeSurplusToken(address indexed token, int256 amount);
+  event ELHookSeizeSurplusToken(address indexed token, int256 amount);
 
   /// @notice Emitted when surplus tokens are claimed
-  event KSHookClaimSurplusTokens(address[] tokens, uint256[] amounts);
+  event ELHookClaimSurplusTokens(address[] tokens, uint256[] amounts);
 
   /// @notice Return the whitelist status of an address
   function whitelisted(address sender) external view returns (bool);
+
+  /// @notice Return the address of the signer responsible for signing the maximum exchange rate
+  function signer() external view returns (address);
 
   /// @notice Return the address of the surplus recipient
   function surplusRecipient() external view returns (address);
 
   /**
    * @notice Update the whitelist status of an address
-   * @param sender the address to update
+   * @param senders the addresses to update
    * @param grantOrRevoke the new whitelist status
    */
-  function updateWhitelist(address sender, bool grantOrRevoke) external;
+  function whitelistSenders(address[] calldata senders, bool grantOrRevoke) external;
+
+  /**
+   * @notice Update the signer
+   * @param newSigner the new signer
+   */
+  function updateSigner(address newSigner) external;
 
   /**
    * @notice Update the surplus recipient
-   * @param recipient the new surplus recipient
+   * @param newRecipient the new surplus recipient
    */
-  function updateSurplusRecipient(address recipient) external;
+  function updateSurplusRecipient(address newRecipient) external;
 
   /**
    * @notice Claim surplus tokens accrued by the hook
    * @param tokens the addresses of the tokens to claim
+   * @param amounts the amounts of the tokens to claim, set to 0 to claim all
    */
-  function claimSurplusTokens(address[] calldata tokens) external;
+  function claimSurplusTokens(address[] calldata tokens, uint256[] calldata amounts) external;
 }

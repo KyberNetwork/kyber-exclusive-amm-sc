@@ -7,16 +7,17 @@ import 'uniswap/v4-core/src/libraries/SafeCast.sol';
 import 'uniswap/v4-core/test/utils/Deployers.sol';
 import 'uniswap/v4-periphery/src/utils/HookMiner.sol';
 
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+
 contract UniswapV4ELHookTest is Deployers {
   using SafeCast for *;
 
   address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
   address owner;
-  uint256 ownerKey;
   address operator;
-  uint256 operatorKey;
-  address guardian;
+  address signer;
+  uint256 signerKey;
   address surplusRecipient;
   address account;
   uint256 accountKey;
@@ -29,25 +30,21 @@ contract UniswapV4ELHookTest is Deployers {
     PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
 
   function setUp() public {
-    (owner, ownerKey) = makeAddrAndKey('owner');
-    (operator, operatorKey) = makeAddrAndKey('operator');
-    guardian = makeAddr('guardian');
+    owner = makeAddr('owner');
+    operator = makeAddr('operator');
+    (signer, signerKey) = makeAddrAndKey('signer');
     surplusRecipient = makeAddr('surplusRecipient');
     (account, accountKey) = makeAddrAndKey('account');
 
     initializeManagerRoutersAndPoolsWithLiq(IHooks(address(0)));
     keyWithoutHook = key;
 
-    address[] memory initialOperators = new address[](1);
-    initialOperators[0] = operator;
-    address[] memory initialGuardians = new address[](1);
-    initialGuardians[0] = guardian;
     hook = address(
       uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
     );
     deployCodeTo(
       'UniswapV4ELHook.sol',
-      abi.encode(manager, owner, initialOperators, initialGuardians, surplusRecipient),
+      abi.encode(manager, owner, newAddressesLength1(operator), signer, surplusRecipient),
       hook
     );
 
@@ -55,16 +52,26 @@ contract UniswapV4ELHookTest is Deployers {
       initPoolAndAddLiquidity(currency0, currency1, IHooks(hook), 3000, SQRT_PRICE_1_1);
 
     vm.prank(owner);
-    IELHook(hook).updateWhitelist(address(swapRouter), true);
+    IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
   }
 
   /// forge-config: default.fuzz.runs = 5
   function test_updateWhitelist(address sender, bool grantOrRevoke) public {
     vm.prank(owner);
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.KSHookUpdateWhitelisted(sender, grantOrRevoke);
-    IELHook(hook).updateWhitelist(sender, grantOrRevoke);
+    emit IELHook.ELHookWhitelistSender(sender, grantOrRevoke);
+    IELHook(hook).whitelistSenders(newAddressesLength1(sender), grantOrRevoke);
     assertEq(IELHook(hook).whitelisted(sender), grantOrRevoke);
+  }
+
+  /// forge-config: default.fuzz.runs = 5
+  function test_updateSigner(address newSigner) public {
+    vm.assume(newSigner != address(0));
+    vm.prank(owner);
+    vm.expectEmit(true, true, true, true, hook);
+    emit IELHook.ELHookUpdateSigner(newSigner);
+    IELHook(hook).updateSigner(newSigner);
+    assertEq(IELHook(hook).signer(), newSigner);
   }
 
   /// forge-config: default.fuzz.runs = 5
@@ -72,45 +79,76 @@ contract UniswapV4ELHookTest is Deployers {
     vm.assume(recipient != address(0));
     vm.prank(owner);
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.KSHookUpdateSurplusRecipient(recipient);
+    emit IELHook.ELHookUpdateSurplusRecipient(recipient);
     IELHook(hook).updateSurplusRecipient(recipient);
     assertEq(IELHook(hook).surplusRecipient(), recipient);
   }
 
+  function test_updateSigner_with_zeroAddress() public {
+    vm.prank(owner);
+    vm.expectRevert(IELHook.ELHookInvalidAddress.selector);
+    IELHook(hook).updateSigner(address(0));
+  }
+
   function test_updateSurplusRecipient_with_zeroAddress() public {
     vm.prank(owner);
-    vm.expectRevert(IELHook.KSHookInvalidSurplusRecipient.selector);
+    vm.expectRevert(IELHook.ELHookInvalidAddress.selector);
     IELHook(hook).updateSurplusRecipient(address(0));
   }
 
-  function test_swap_exactInput_and_claimSurplusTokens(
+  function test_claimSurplusTokens(
+    uint256 mintAmount0,
+    uint256 mintAmount1,
+    uint256 claimAmount0,
+    uint256 claimAmount1
+  ) public {
+    mintAmount0 = bound(mintAmount0, 0, uint128(type(int128).max));
+    mintAmount1 = bound(mintAmount1, 0, uint128(type(int128).max));
+    claimAmount0 = bound(claimAmount0, 0, mintAmount0);
+    claimAmount1 = bound(claimAmount1, 0, mintAmount1);
+    manager.unlock(abi.encode(mintAmount0, mintAmount1));
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = Currency.unwrap(currency0);
+    tokens[1] = Currency.unwrap(currency1);
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = claimAmount0 == 0 ? mintAmount0 : claimAmount0;
+    amounts[1] = claimAmount1 == 0 ? mintAmount1 : claimAmount1;
+
+    vm.prank(operator);
+    vm.expectEmit(true, true, true, true, hook);
+    emit IELHook.ELHookClaimSurplusTokens(tokens, amounts);
+    amounts[0] = claimAmount0;
+    amounts[1] = claimAmount1;
+    IELHook(hook).claimSurplusTokens(tokens, amounts);
+  }
+
+  function unlockCallback(bytes calldata data) public returns (bytes memory) {
+    (uint256 mintAmount0, uint256 mintAmount1) = abi.decode(data, (uint256, uint256));
+    manager.mint(hook, uint256(uint160(Currency.unwrap(currency0))), mintAmount0);
+    manager.mint(hook, uint256(uint160(Currency.unwrap(currency1))), mintAmount1);
+
+    manager.sync(currency0);
+    IERC20(Currency.unwrap(currency0)).transfer(address(manager), mintAmount0);
+    manager.settle();
+
+    manager.sync(currency1);
+    IERC20(Currency.unwrap(currency1)).transfer(address(manager), mintAmount1);
+    manager.settle();
+  }
+
+  function test_swap_exactInput_succeed(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
     int256 maxAmountIn,
     int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    int256 exchangeRateDenom,
+    uint256 expiryTime
   ) public {
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
+    normalizeTestInput(
+      amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime
     );
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -118,31 +156,6 @@ contract UniswapV4ELHookTest is Deployers {
       zeroForOne: zeroForOne,
       sqrtPriceLimitX96: sqrtPriceLimitX96
     });
-
-    bytes memory signature = getSignature(
-      operatorKey,
-      keccak256(
-        abi.encode(
-          keyWithHook,
-          zeroForOne,
-          minAmountIn,
-          maxAmountIn,
-          maxExchangeRate,
-          log2ExchangeRateDenom,
-          expiryTime
-        )
-      )
-    );
-
-    bytes memory hookData = abi.encode(
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime,
-      operator,
-      signature
-    );
 
     BalanceDelta deltaWithoutHook = swapRouter.swap(keyWithoutHook, params, testSettings, '');
     int128 amountIn;
@@ -155,14 +168,29 @@ contract UniswapV4ELHookTest is Deployers {
       amountOutWithoutHook = deltaWithoutHook.amount0();
     }
 
+    exchangeRateDenom = getExchangeRateDenom(
+      amountIn, maxExchangeRate, amountOutWithoutHook, exchangeRateDenom, expiryTime % 2 == 0
+    );
+
+    bytes memory signature = getSignature(
+      signerKey,
+      keccak256(
+        abi.encode(
+          keyWithHook, zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
+        )
+      )
+    );
+    bytes memory hookData =
+      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, signature);
+
     Currency currencyOut = zeroForOne ? currency1 : currency0;
-    int256 maxAmountOut = (amountIn * maxExchangeRate) >> log2ExchangeRateDenom;
+    int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
     int256 surplusAmount =
       maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0);
     if (surplusAmount > 0) {
       vm.expectEmit(true, true, true, true, hook);
 
-      emit IELHook.KSHookSeizeSurplusToken(
+      emit IELHook.ELHookSeizeSurplusToken(
         Currency.unwrap(currencyOut), amountOutWithoutHook - maxAmountOut
       );
     }
@@ -185,14 +213,12 @@ contract UniswapV4ELHookTest is Deployers {
       assertEq(amountOutWithHook, amountOutWithoutHook);
     }
 
-    address[] memory tokens = new address[](1);
-    tokens[0] = Currency.unwrap(currencyOut);
-    uint256[] memory amounts = new uint256[](1);
-    amounts[0] = uint256(surplusAmount);
+    address[] memory tokens = newAddressesLength1(Currency.unwrap(currencyOut));
+    uint256[] memory amounts = newUint256sLength1(uint256(surplusAmount));
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.KSHookClaimSurplusTokens(tokens, amounts);
+    emit IELHook.ELHookClaimSurplusTokens(tokens, amounts);
     vm.prank(operator);
-    IELHook(hook).claimSurplusTokens(tokens);
+    IELHook(hook).claimSurplusTokens(tokens, newUint256sLength1(0));
   }
 
   /// forge-config: default.fuzz.runs = 5
@@ -200,35 +226,13 @@ contract UniswapV4ELHookTest is Deployers {
     PoolSwapTest router,
     int256 amountSpecified,
     bool zeroForOne,
-    uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
-    int256 maxAmountIn,
-    int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    uint160 sqrtPriceLimitX96
   ) public {
     vm.assume(router != swapRouter);
     deployCodeTo('PoolSwapTest.sol', abi.encode(manager), address(router));
 
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    );
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96,,,) =
+      normalizeTestInput(amountSpecified, zeroForOne, sqrtPriceLimitX96, 0, 0, 0);
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
       amountSpecified: amountSpecified,
@@ -241,7 +245,7 @@ contract UniswapV4ELHookTest is Deployers {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.KSHookNotWhitelisted.selector, address(router)),
+        abi.encodeWithSelector(IELHook.ELHookNotWhitelisted.selector, address(router)),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -252,32 +256,10 @@ contract UniswapV4ELHookTest is Deployers {
   function test_swap_exactOutput_shouldFail(
     int256 amountSpecified,
     bool zeroForOne,
-    uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
-    int256 maxAmountIn,
-    int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    uint160 sqrtPriceLimitX96
   ) public {
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    );
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96,,,) =
+      normalizeTestInput(amountSpecified, zeroForOne, sqrtPriceLimitX96, 0, 0, 0);
     amountSpecified = -amountSpecified;
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -291,7 +273,7 @@ contract UniswapV4ELHookTest is Deployers {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.KSHookExactOutputDisabled.selector),
+        abi.encodeWithSelector(IELHook.ELHookExactOutputDisabled.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -303,30 +285,14 @@ contract UniswapV4ELHookTest is Deployers {
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
     int256 maxAmountIn,
     int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    int256 exchangeRateDenom,
+    uint256 expiryTime
   ) public {
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
+    normalizeTestInput(
+      amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime
     );
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -335,9 +301,8 @@ contract UniswapV4ELHookTest is Deployers {
       sqrtPriceLimitX96: sqrtPriceLimitX96
     });
 
-    bytes memory hookData = abi.encode(
-      minAmountIn, maxAmountIn, maxExchangeRate, log2ExchangeRateDenom, expiryTime, operator, ''
-    );
+    bytes memory hookData =
+      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, '');
 
     vm.warp(expiryTime + bound(expiryTime, 1, 1e9));
     vm.expectRevert(
@@ -345,63 +310,7 @@ contract UniswapV4ELHookTest is Deployers {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.KSHookExpiredSignature.selector),
-        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-      )
-    );
-    swapRouter.swap(keyWithHook, params, testSettings, hookData);
-  }
-
-  /// forge-config: default.fuzz.runs = 5
-  function test_swap_exactInput_with_invalidOperator_shouldFail(
-    address signer,
-    int256 amountSpecified,
-    bool zeroForOne,
-    uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
-    int256 maxAmountIn,
-    int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
-  ) public {
-    vm.assume(signer != operator);
-
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    );
-
-    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-      amountSpecified: amountSpecified,
-      zeroForOne: zeroForOne,
-      sqrtPriceLimitX96: sqrtPriceLimitX96
-    });
-
-    bytes memory hookData = abi.encode(
-      minAmountIn, maxAmountIn, maxExchangeRate, log2ExchangeRateDenom, expiryTime, signer, ''
-    );
-
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        CustomRevert.WrappedError.selector,
-        hook,
-        IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(KyberSwapRole.KSRoleNotOperator.selector, signer),
+        abi.encodeWithSelector(IELHook.ELHookExpiredSignature.selector, expiryTime, block.timestamp),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -409,40 +318,20 @@ contract UniswapV4ELHookTest is Deployers {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_swap_exactInput_with_invalidAmountIn_shouldFail(
+  function test_swap_exactInput_with_exceededAmountIn_shouldFail(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
     int256 maxAmountIn,
     int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    int256 exchangeRateDenom,
+    uint256 expiryTime
   ) public {
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
+    normalizeTestInput(
+      amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime
     );
-    if (amountSpecified % 2 == 0) {
-      amountSpecified = -bound(amountSpecified, 1, minAmountIn - 1);
-    } else {
-      amountSpecified = -bound(amountSpecified, maxAmountIn + 1, type(int256).max);
-    }
+    amountSpecified = -bound(amountSpecified, maxAmountIn + 1, type(int256).max);
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
       amountSpecified: amountSpecified,
@@ -450,9 +339,8 @@ contract UniswapV4ELHookTest is Deployers {
       sqrtPriceLimitX96: sqrtPriceLimitX96
     });
 
-    bytes memory hookData = abi.encode(
-      minAmountIn, maxAmountIn, maxExchangeRate, log2ExchangeRateDenom, expiryTime, operator, ''
-    );
+    bytes memory hookData =
+      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, '');
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -460,7 +348,7 @@ contract UniswapV4ELHookTest is Deployers {
         hook,
         IHooks.beforeSwap.selector,
         abi.encodeWithSelector(
-          IELHook.KSHookInvalidAmountIn.selector, minAmountIn, maxAmountIn, -amountSpecified
+          IELHook.ELHookExceededMaxAmountIn.selector, maxAmountIn, -amountSpecified
         ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
@@ -470,37 +358,20 @@ contract UniswapV4ELHookTest is Deployers {
 
   /// forge-config: default.fuzz.runs = 5
   function test_swap_exactInput_with_invalidSignature_shouldFail(
-    uint256 signerKey,
+    uint256 privKey,
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
     int256 maxAmountIn,
     int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
+    int256 exchangeRateDenom,
+    uint256 expiryTime
   ) public {
-    signerKey = bound(signerKey, 1, SECP256K1_ORDER - 1);
-    vm.assume(signerKey != operatorKey);
-
-    (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    ) = normalizeTestInput(
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
+    privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
+    vm.assume(privKey != signerKey);
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
+    normalizeTestInput(
+      amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime
     );
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -510,36 +381,22 @@ contract UniswapV4ELHookTest is Deployers {
     });
 
     bytes memory signature = getSignature(
-      signerKey,
+      privKey,
       keccak256(
         abi.encode(
-          keyWithHook,
-          zeroForOne,
-          minAmountIn,
-          maxAmountIn,
-          maxExchangeRate,
-          log2ExchangeRateDenom,
-          expiryTime
+          keyWithHook, zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
         )
       )
     );
-
-    bytes memory hookData = abi.encode(
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime,
-      operator,
-      signature
-    );
+    bytes memory hookData =
+      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, signature);
 
     vm.expectRevert(
       abi.encodeWithSelector(
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.KSHookInvalidSignature.selector),
+        abi.encodeWithSelector(IELHook.ELHookInvalidSignature.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -550,34 +407,37 @@ contract UniswapV4ELHookTest is Deployers {
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
-    int256 minAmountIn,
     int256 maxAmountIn,
     int256 maxExchangeRate,
-    uint32 log2ExchangeRateDenom,
-    uint64 expiryTime
-  ) public view returns (int256, bool, uint160, int256, int256, int256, uint32, uint64) {
+    uint256 expiryTime
+  ) public view returns (int256, bool, uint160, int256, int256, uint256) {
     amountSpecified = int256(bound(amountSpecified, -3e11, -1e3));
     sqrtPriceLimitX96 = uint160(
       zeroForOne
         ? bound(sqrtPriceLimitX96, MIN_PRICE_LIMIT, SQRT_PRICE_1_1 - 100)
         : bound(sqrtPriceLimitX96, SQRT_PRICE_1_1 + 100, MAX_PRICE_LIMIT)
     );
-    minAmountIn = bound(minAmountIn, 2, -amountSpecified);
     maxAmountIn = bound(maxAmountIn, -amountSpecified, type(int256).max - 1);
     maxExchangeRate = bound(maxExchangeRate, 0, type(int256).max / -amountSpecified);
-    log2ExchangeRateDenom = uint32(bound(log2ExchangeRateDenom, 0, 256));
-    expiryTime = uint64(bound(expiryTime, block.timestamp, block.timestamp + 1e6));
+    expiryTime = bound(expiryTime, block.timestamp, block.timestamp + 1e6);
 
-    return (
-      amountSpecified,
-      zeroForOne,
-      sqrtPriceLimitX96,
-      minAmountIn,
-      maxAmountIn,
-      maxExchangeRate,
-      log2ExchangeRateDenom,
-      expiryTime
-    );
+    return
+      (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime);
+  }
+
+  function getExchangeRateDenom(
+    int256 amountIn,
+    int256 maxExchangeRate,
+    int256 amountOutWithoutHook,
+    int256 exchangeRateDenom,
+    bool exceeded
+  ) internal pure returns (int256) {
+    int256 border = amountOutWithoutHook > 0
+      ? amountIn * maxExchangeRate / amountOutWithoutHook
+      : type(int256).max;
+    return exceeded || border == 0
+      ? bound(exchangeRateDenom, border, type(int256).max)
+      : bound(exchangeRateDenom, 1, border);
   }
 
   function getSignature(uint256 privKey, bytes32 digest)
@@ -587,5 +447,15 @@ contract UniswapV4ELHookTest is Deployers {
   {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
     signature = abi.encodePacked(r, s, v);
+  }
+
+  function newAddressesLength1(address addr) internal pure returns (address[] memory addresses) {
+    addresses = new address[](1);
+    addresses[0] = addr;
+  }
+
+  function newUint256sLength1(uint256 value) internal pure returns (uint256[] memory values) {
+    values = new uint256[](1);
+    values[0] = value;
   }
 }

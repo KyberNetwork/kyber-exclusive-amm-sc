@@ -25,21 +25,21 @@ contract DeployUniswapV4ELHookScript is BaseScript {
       IPoolManager(_readAddress('script/configs/pool-manager.json', chainId));
     address initialOwner = _readAddress('script/configs/owner.json', chainId);
     address[] memory initialOperators = _readAddressArray('script/configs/operators.json', chainId);
-    address[] memory initialGuardians = _readAddressArray('script/configs/guardians.json', chainId);
-    address initialRecipient = _readAddress('script/configs/surplus-recipient.json', chainId);
+    address initialSigner = _readAddress('script/configs/signer.json', chainId);
+    address initialSurplusRecipient = _readAddress('script/configs/surplus-recipient.json', chainId);
 
     console.log('poolManager:', address(poolManager));
     console.log('initialOwner:', initialOwner);
     console.log('initialOperators:', initialOperators[0]);
-    console.log('initialGuardians:', initialGuardians[0]);
-    console.log('initialRecipient:', initialRecipient);
+    console.log('initialSurplusRecipient:', initialSurplusRecipient);
 
     // hook contracts must have specific flags encoded in the address
     uint160 flags =
       uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
 
-    bytes memory constructorArgs =
-      abi.encode(poolManager, initialOwner, initialOperators, initialGuardians, initialRecipient);
+    bytes memory constructorArgs = abi.encode(
+      poolManager, initialOwner, initialOperators, initialSigner, initialSurplusRecipient
+    );
 
     // Mine a salt that will produce a hook address with the correct flags
     (address hookAddress, bytes32 salt) =
@@ -48,7 +48,11 @@ contract DeployUniswapV4ELHookScript is BaseScript {
     // Deploy the hook using CREATE2
     vm.broadcast();
     UniswapV4ELHook counter = new UniswapV4ELHook{salt: salt}(
-      IPoolManager(poolManager), initialOwner, initialOperators, initialGuardians, initialRecipient
+      IPoolManager(poolManager),
+      initialOwner,
+      initialOperators,
+      initialSigner,
+      initialSurplusRecipient
     );
     require(address(counter) == hookAddress, 'CounterScript: hook address mismatch');
   }
