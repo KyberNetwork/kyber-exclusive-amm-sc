@@ -35,7 +35,7 @@ interface IELHook {
   event ELHookWhitelistSender(address indexed sender, bool grantOrRevoke);
 
   /// @notice Emitted when the signer is updated
-  event ELHookUpdateSigner(address indexed signer);
+  event ELHookUpdateQuoteSigner(address indexed quoteSigner);
 
   /// @notice Emitted when the surplus recipient is updated
   event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
@@ -49,8 +49,8 @@ interface IELHook {
   /// @notice Return the whitelist status of an address
   function whitelisted(address sender) external view returns (bool);
 
-  /// @notice Return the address of the signer responsible for signing the maximum exchange rate
-  function signer() external view returns (address);
+  /// @notice Return the address of the signer responsible for signing the quote
+  function quoteSigner() external view returns (address);
 
   /// @notice Return the address of the surplus recipient
   function surplusRecipient() external view returns (address);
@@ -63,10 +63,10 @@ interface IELHook {
   function whitelistSenders(address[] calldata senders, bool grantOrRevoke) external;
 
   /**
-   * @notice Update the signer
+   * @notice Update the quote signer
    * @param newSigner the new signer
    */
-  function updateSigner(address newSigner) external;
+  function updateQuoteSigner(address newSigner) external;
 
   /**
    * @notice Update the surplus recipient

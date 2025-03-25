@@ -25,7 +25,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
   mapping(address => bool) public whitelisted;
 
   /// @inheritdoc IELHook
-  address public signer;
+  address public quoteSigner;
 
   /// @inheritdoc IELHook
   address public surplusRecipient;
@@ -43,7 +43,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
       emit UpdateOperator(initialOperators[i], true);
     }
 
-    _updateSigner(initialSigner);
+    _updateQuoteSigner(initialSigner);
     _updateSurplusRecipient(initialSurplusRecipient);
   }
 
@@ -57,8 +57,8 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
   }
 
   /// @inheritdoc IELHook
-  function updateSigner(address newSigner) public onlyOwner {
-    _updateSigner(newSigner);
+  function updateQuoteSigner(address newSigner) public onlyOwner {
+    _updateQuoteSigner(newSigner);
   }
 
   /// @inheritdoc IELHook
@@ -66,11 +66,11 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
     _updateSurplusRecipient(newRecipient);
   }
 
-  function _updateSigner(address newSigner) internal {
+  function _updateQuoteSigner(address newSigner) internal {
     require(newSigner != address(0), ELHookInvalidAddress());
-    signer = newSigner;
+    quoteSigner = newSigner;
 
-    emit ELHookUpdateSigner(newSigner);
+    emit ELHookUpdateQuoteSigner(newSigner);
   }
 
   function _updateSurplusRecipient(address newRecipient) internal {
@@ -131,7 +131,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
     );
     require(
       SignatureChecker.isValidSignatureNow(
-        signer,
+        quoteSigner,
         keccak256(
           abi.encode(
             key, params.zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime

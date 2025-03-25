@@ -65,13 +65,13 @@ contract UniswapV4ELHookTest is Deployers {
   }
 
   /// forge-config: default.fuzz.runs = 5
-  function test_updateSigner(address newSigner) public {
+  function test_updateQuoteSigner(address newSigner) public {
     vm.assume(newSigner != address(0));
     vm.prank(owner);
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookUpdateSigner(newSigner);
-    IELHook(hook).updateSigner(newSigner);
-    assertEq(IELHook(hook).signer(), newSigner);
+    emit IELHook.ELHookUpdateQuoteSigner(newSigner);
+    IELHook(hook).updateQuoteSigner(newSigner);
+    assertEq(IELHook(hook).quoteSigner(), newSigner);
   }
 
   /// forge-config: default.fuzz.runs = 5
@@ -84,10 +84,10 @@ contract UniswapV4ELHookTest is Deployers {
     assertEq(IELHook(hook).surplusRecipient(), recipient);
   }
 
-  function test_updateSigner_with_zeroAddress() public {
+  function test_updateQuoteSigner_with_zeroAddress() public {
     vm.prank(owner);
     vm.expectRevert(IELHook.ELHookInvalidAddress.selector);
-    IELHook(hook).updateSigner(address(0));
+    IELHook(hook).updateQuoteSigner(address(0));
   }
 
   function test_updateSurplusRecipient_with_zeroAddress() public {
