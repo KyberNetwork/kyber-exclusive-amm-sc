@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {PoolId} from 'uniswap/v4-core/src/types/PoolId.sol';
+
 interface IELHook {
   /// @notice Thrown when the sender is not whitelisted
   error ELHookNotWhitelisted(address sender);
@@ -41,10 +43,12 @@ interface IELHook {
   event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
 
   /// @notice Emitted when a surplus amount of token is seized
-  event ELHookSeizeSurplusToken(address indexed token, int256 amount);
+  event ELHookSeizeSurplusToken(PoolId indexed poolId, address indexed token, int256 amount);
 
   /// @notice Emitted when surplus tokens are claimed
-  event ELHookClaimSurplusTokens(address[] tokens, uint256[] amounts);
+  event ELHookClaimSurplusTokens(
+    address indexed surplusRecipient, address[] tokens, uint256[] amounts
+  );
 
   /// @notice Return the whitelist status of an address
   function whitelisted(address sender) external view returns (bool);
