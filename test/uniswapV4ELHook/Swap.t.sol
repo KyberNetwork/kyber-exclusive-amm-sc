@@ -18,7 +18,6 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
     int256 exchangeRateDenom,
     uint256 expiryTime
   ) public {
-    vm.assume(maxExchangeRate > 0 && exchangeRateDenom > 0);
     (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
     normalizeTestInput(
       amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime

@@ -99,8 +99,8 @@ contract UniswapV4ELHookBaseTest is Deployers {
     int256 border = amountOutWithoutHook > 0
       ? amountIn * maxExchangeRate / amountOutWithoutHook
       : type(int256).max;
-    return exceeded || border == 0
-      ? bound(exchangeRateDenom, border, type(int256).max)
+    return (exceeded && border != type(int256).max) || border == 0
+      ? bound(exchangeRateDenom, border + 1, type(int256).max)
       : bound(exchangeRateDenom, 1, border);
   }
 
