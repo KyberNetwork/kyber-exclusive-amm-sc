@@ -104,7 +104,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
       }
     }
 
-    emit ELHookClaimSurplusTokens(tokens, amounts);
+    emit ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
   }
 
   function _beforeSwap(
@@ -176,7 +176,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
           address(this), uint256(uint160(Currency.unwrap(currencyOut))), uint256(surplusAmount)
         );
 
-        emit ELHookSeizeSurplusToken(Currency.unwrap(currencyOut), surplusAmount);
+        emit ELHookSeizeSurplusToken(key.toId(), Currency.unwrap(currencyOut), surplusAmount);
       }
 
       return (this.afterSwap.selector, int128(surplusAmount));
