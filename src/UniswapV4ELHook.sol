@@ -13,6 +13,8 @@ import {
 } from 'uniswap/v4-core/src/types/BeforeSwapDelta.sol';
 import {Currency} from 'uniswap/v4-core/src/types/Currency.sol';
 import {PoolKey} from 'uniswap/v4-core/src/types/PoolKey.sol';
+
+import {CalldataDecoder} from 'uniswap/v4-periphery/src/libraries/CalldataDecoder.sol';
 import {BaseHook} from 'uniswap/v4-periphery/src/utils/BaseHook.sol';
 
 import {SignatureChecker} from
@@ -122,7 +124,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
       int256 exchangeRateDenom,
       uint256 expiryTime,
       bytes memory signature
-    ) = abi.decode(hookData, (int256, int256, int256, uint256, bytes));
+    ) = _decodeAllHookData(hookData);
 
     require(block.timestamp <= expiryTime, ELHookExpiredSignature(expiryTime, block.timestamp));
     require(
@@ -152,8 +154,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
     BalanceDelta delta,
     bytes calldata hookData
   ) internal override returns (bytes4, int128) {
-    (, int256 maxExchangeRate, int256 exchangeRateDenom,,) =
-      abi.decode(hookData, (int256, int256, int256, uint256, bytes));
+    (int256 maxExchangeRate, int256 exchangeRateDenom) = _decodeExchangeRate(hookData);
 
     unchecked {
       int128 amountIn;
@@ -200,5 +201,40 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
       afterAddLiquidityReturnDelta: false,
       afterRemoveLiquidityReturnDelta: false
     });
+  }
+
+  /// @dev equivalent to: abi.decode(params, (int256, int256, int256, uint256, bytes)) in calldata
+  function _decodeAllHookData(bytes calldata hookData)
+    internal
+    pure
+    returns (
+      int256 maxAmountIn,
+      int256 maxExchangeRate,
+      int256 exchangeRateDenom,
+      uint256 expiryTime,
+      bytes memory signature
+    )
+  {
+    // no length check performed, as there is a length check in `toBytes`
+    assembly ("memory-safe") {
+      maxAmountIn := calldataload(hookData.offset)
+      maxExchangeRate := calldataload(add(hookData.offset, 0x20))
+      exchangeRateDenom := calldataload(add(hookData.offset, 0x40))
+      expiryTime := calldataload(add(hookData.offset, 0x60))
+    }
+
+    signature = CalldataDecoder.toBytes(hookData, 4);
+  }
+
+  /// @dev equivalent to: abi.decode(params, (int256, int256, int256, uint256, bytes)) in calldata
+  function _decodeExchangeRate(bytes calldata hookData)
+    internal
+    pure
+    returns (int256 maxExchangeRate, int256 exchangeRateDenom)
+  {
+    assembly ("memory-safe") {
+      maxExchangeRate := calldataload(add(hookData.offset, 0x20))
+      exchangeRateDenom := calldataload(add(hookData.offset, 0x40))
+    }
   }
 }
