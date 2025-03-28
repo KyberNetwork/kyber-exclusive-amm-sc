@@ -152,7 +152,7 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
       if (surplusAmount > 0) {
         vault.mint(address(this), currencyOut, uint256(surplusAmount));
 
-        emit ELHookSeizeSurplusToken(
+        emit ELHookTakeSurplusToken(
           PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), surplusAmount
         );
       }

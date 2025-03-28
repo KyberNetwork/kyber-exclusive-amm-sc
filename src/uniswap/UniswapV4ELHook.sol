@@ -152,7 +152,7 @@ contract UniswapV4ELHook is BaseHook, BaseELHook, IUnlockCallback {
           address(this), uint256(uint160(Currency.unwrap(currencyOut))), uint256(surplusAmount)
         );
 
-        emit ELHookSeizeSurplusToken(
+        emit ELHookTakeSurplusToken(
           PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), surplusAmount
         );
       }

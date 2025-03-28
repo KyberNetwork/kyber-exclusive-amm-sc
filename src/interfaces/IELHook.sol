@@ -44,8 +44,8 @@ interface IELHook {
   /// @notice Emitted when the surplus recipient is updated
   event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
 
-  /// @notice Emitted when a surplus amount of token is seized
-  event ELHookSeizeSurplusToken(bytes32 indexed poolId, address indexed token, int256 amount);
+  /// @notice Emitted when a surplus amount of token is taken
+  event ELHookTakeSurplusToken(bytes32 indexed poolId, address indexed token, int256 amount);
 
   /// @notice Emitted when surplus tokens are claimed
   event ELHookClaimSurplusTokens(

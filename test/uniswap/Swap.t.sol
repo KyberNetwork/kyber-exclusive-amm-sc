@@ -57,7 +57,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
     if (surplusAmount > 0) {
       vm.expectEmit(true, true, true, true, hook);
 
-      emit IELHook.ELHookSeizeSurplusToken(
+      emit IELHook.ELHookTakeSurplusToken(
         PoolId.unwrap(keyWithHook.toId()),
         Currency.unwrap(currencyOut),
         amountOutWithoutHook - maxAmountOut
