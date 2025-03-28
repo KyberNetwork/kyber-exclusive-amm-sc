@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {PoolId} from 'uniswap/v4-core/src/types/PoolId.sol';
-
+/**
+ * @title IELHook
+ * @notice Common interface for the ELHook contracts
+ */
 interface IELHook {
   /// @notice Thrown when the sender is not whitelisted
   error ELHookNotWhitelisted(address sender);
@@ -24,7 +26,7 @@ interface IELHook {
   error ELHookInvalidSignature();
 
   /**
-   * @notice Thrown when the input amount is exceeded the maximum amount
+   * @notice Thrown when the input amount exceeds the maximum amount
    * @param maxAmountIn the maximum input amount
    * @param amountIn the actual input amount
    */
@@ -43,7 +45,7 @@ interface IELHook {
   event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
 
   /// @notice Emitted when a surplus amount of token is seized
-  event ELHookSeizeSurplusToken(PoolId indexed poolId, address indexed token, int256 amount);
+  event ELHookSeizeSurplusToken(bytes32 indexed poolId, address indexed token, int256 amount);
 
   /// @notice Emitted when surplus tokens are claimed
   event ELHookClaimSurplusTokens(
