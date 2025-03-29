@@ -17,13 +17,19 @@ contract DeployScript is BaseScript {
     address initialQuoteSigner = _readAddress('quote-signer');
     address initialSurplusRecipient = _readAddress('surplus-recipient');
 
-    // Deploy the hook using CREATE
-    vm.broadcast();
-    PancakeswapInfinityELHook hook = new PancakeswapInfinityELHook(
-      poolManager, initialOwner, initialOperators, initialQuoteSigner, initialSurplusRecipient
+    // Deploy the hook using CREATE3
+    bytes32 salt;
+    bytes memory bytecode = abi.encodePacked(
+      type(PancakeswapInfinityELHook).creationCode,
+      abi.encode(
+        poolManager, initialOwner, initialOperators, initialQuoteSigner, initialSurplusRecipient
+      )
     );
-    _writeAddress('pancakeswap-infinity-el-hook', address(hook));
 
-    emit DeployContract('pancakeswap-infinity-el-hook', address(hook));
+    vm.broadcast();
+    address hook = _deployContract(salt, bytecode);
+    _writeAddress('pancakeswap-infinity-el-hook', hook);
+
+    emit DeployContract('pancakeswap-infinity-el-hook', hook);
   }
 }

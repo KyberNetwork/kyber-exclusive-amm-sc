@@ -19,7 +19,7 @@ sort_imports = true
 
 [rpc_endpoints]
 eth_sepolia = "${RPC_ETH_SEPOLIA}"
-bnb_testnet = "${RPC_BNB_TESTNET}"
+bsc_testnet = "${RPC_BSC_TESTNET}"
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_MAINNET_KEY}" }

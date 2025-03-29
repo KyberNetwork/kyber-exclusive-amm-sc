@@ -5,7 +5,6 @@ import '../Base.s.sol';
 
 import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
 import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
-import {HookMiner} from 'uniswap/v4-periphery/src/utils/HookMiner.sol';
 
 import 'src/uniswap/UniswapV4ELHook.sol';
 
@@ -24,25 +23,20 @@ contract DeployScript is BaseScript {
     uint160 flags =
       uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
 
-    bytes memory constructorArgs = abi.encode(
-      poolManager, initialOwner, initialOperators, initialQuoteSigner, initialSurplusRecipient
+    // Deploy the hook using CREATE3
+    bytes32 salt = 0x000000000000000000000000000000000000000016bc76e7e513700000000b0a;
+    bytes memory bytecode = abi.encodePacked(
+      type(UniswapV4ELHook).creationCode,
+      abi.encode(
+        poolManager, initialOwner, initialOperators, initialQuoteSigner, initialSurplusRecipient
+      )
     );
 
-    // Mine a salt that will produce a hook address with the correct flags
-    (address hookAddress, bytes32 salt) =
-      HookMiner.find(CREATE2_DEPLOYER, flags, type(UniswapV4ELHook).creationCode, constructorArgs);
-
-    // Deploy the hook using CREATE2
+    // Deploy the hook using CREATE3
     vm.broadcast();
-    UniswapV4ELHook hook = new UniswapV4ELHook{salt: salt}(
-      IPoolManager(poolManager),
-      initialOwner,
-      initialOperators,
-      initialQuoteSigner,
-      initialSurplusRecipient
-    );
-    require(address(hook) == hookAddress, 'DeployScript: hook address mismatch');
+    address hook = _deployContract(salt, bytecode);
+    _writeAddress('uniswap-v4-el-hook', hook);
 
-    emit DeployContract('uniswap-v4-el-hook', address(hook));
+    emit DeployContract('uniswap-v4-el-hook', hook);
   }
 }
