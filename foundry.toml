@@ -18,10 +18,11 @@ number_underscore = 'thousands'
 sort_imports = true
 
 [rpc_endpoints]
-eth_sepolia = "${RPC_ETH_SEPOLIA}"
-bsc_testnet = "${RPC_BSC_TESTNET}"
+sepolia = "${RPC_ETH_SEPOLIA}"
+bnb_smart_chain_testnet = "${RPC_BSC_TESTNET}"
 
 [etherscan]
-sepolia = { key = "${ETHERSCAN_MAINNET_KEY}" }
+sepolia = { key = "${ETHERSCAN_KEY}" }
+bnb_smart_chain_testnet = { key = "${BSCSCAN_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

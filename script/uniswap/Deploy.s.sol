@@ -21,9 +21,9 @@ contract DeployScript is BaseScript {
 
     // Deploy the hook using CREATE3
     // Follow the instructions in
-    // https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/tree/add-scripts?tab=readme-ov-file#deploy
+    // https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/?tab=readme-ov-file#deploy
     // to find the suitable salt
-    bytes32 salt = 0x000000000000000000000000000000000000000016bc76e7e513700000000b0a;
+    bytes32 salt = 0x000000000000000000000000000000000000000034b3d923ecc20000000007e1;
     bytes memory bytecode = abi.encodePacked(
       type(UniswapV4ELHook).creationCode,
       abi.encode(

@@ -55,9 +55,8 @@ contract BaseScript is Script {
     if (!vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
       return;
     }
-    string memory json = _getJsonString(key);
-    json.serialize(chainId, value);
-    vm.writeJson(json, string.concat(path, key, '.json'));
+    vm.serializeJson(key, _getJsonString(key));
+    vm.writeJson(key.serialize(chainId, value), string.concat(path, key, '.json'));
   }
 
   function _readBool(string memory key) internal returns (bool result) {
