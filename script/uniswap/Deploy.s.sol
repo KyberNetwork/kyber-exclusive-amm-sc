@@ -19,11 +19,10 @@ contract DeployScript is BaseScript {
     address initialQuoteSigner = _readAddress('quote-signer');
     address initialSurplusRecipient = _readAddress('surplus-recipient');
 
-    // hook contracts must have specific flags encoded in the address
-    uint160 flags =
-      uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
-
     // Deploy the hook using CREATE3
+    // Follow the instructions in
+    // https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/tree/add-scripts?tab=readme-ov-file#deploy
+    // to find the suitable salt
     bytes32 salt = 0x000000000000000000000000000000000000000016bc76e7e513700000000b0a;
     bytes memory bytecode = abi.encodePacked(
       type(UniswapV4ELHook).creationCode,
@@ -32,7 +31,6 @@ contract DeployScript is BaseScript {
       )
     );
 
-    // Deploy the hook using CREATE3
     vm.broadcast();
     address hook = _deployContract(salt, bytecode);
     _writeAddress('uniswap-v4-el-hook', hook);
