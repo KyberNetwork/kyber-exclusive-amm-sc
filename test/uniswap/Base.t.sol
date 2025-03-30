@@ -39,20 +39,6 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
     IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
   }
 
-  function unlockCallback(bytes calldata data) public returns (bytes memory) {
-    (uint256 mintAmount0, uint256 mintAmount1) = abi.decode(data, (uint256, uint256));
-    manager.mint(hook, uint256(uint160(Currency.unwrap(currency0))), mintAmount0);
-    manager.mint(hook, uint256(uint160(Currency.unwrap(currency1))), mintAmount1);
-
-    manager.sync(currency0);
-    IERC20(Currency.unwrap(currency0)).transfer(address(manager), mintAmount0);
-    manager.settle();
-
-    manager.sync(currency1);
-    IERC20(Currency.unwrap(currency1)).transfer(address(manager), mintAmount1);
-    manager.settle();
-  }
-
   function getMinPriceLimit() internal pure override returns (uint160) {
     return MIN_PRICE_LIMIT;
   }

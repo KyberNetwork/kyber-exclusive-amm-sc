@@ -30,12 +30,6 @@ contract BaseScript is Script {
     chainId = vm.toString(_chainId);
   }
 
-  function _msgSender() internal returns (address msgSender) {
-    vm.startBroadcast();
-    msgSender = msg.sender;
-    vm.stopBroadcast();
-  }
-
   function _getJsonString(string memory key) internal view returns (string memory) {
     try vm.readFile(string.concat(path, key, '.json')) returns (string memory json) {
       return json;

@@ -21,8 +21,4 @@ sort_imports = true
 sepolia = "${RPC_ETH_SEPOLIA}"
 bnb_smart_chain_testnet = "${RPC_BSC_TESTNET}"
 
-[etherscan]
-sepolia = { key = "${ETHERSCAN_KEY}" }
-bnb_smart_chain_testnet = { key = "${BSCSCAN_KEY}" }
-
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

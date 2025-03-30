@@ -18,6 +18,8 @@ abstract contract BaseTest is Test {
     (quoteSigner, quoteSignerKey) = makeAddrAndKey('quoteSigner');
     surplusRecipient = makeAddr('surplusRecipient');
     actorAddresses = [owner, operator, quoteSigner, surplusRecipient, makeAddr('anyone')];
+
+    vm.deal(address(this), type(uint256).max);
   }
 
   function normalizeTestInput(

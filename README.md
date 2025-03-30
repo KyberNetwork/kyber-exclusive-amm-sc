@@ -54,7 +54,7 @@ Follow these steps to find a suitable salt and deploy the hook:
 - Clone the repository [Piwi](https://github.com/thepluck/piwi), which is a salt mining tool for Uniswap V4 hooks.
 - In the cloned repository, run the following command to find a suitable salt:
   ```
-  $ cargo run --release -- create3 <deployer_address> C4
+  $ cargo run --release -- create3 <deployer_address> C4 [--prefix <prefix>]
   ```
 - Replace the `salt` variable in the `script/uniswap/Deploy.s.sol` file with the one found in the previous step.
 - In this repository, run the following command to deploy the hook:
