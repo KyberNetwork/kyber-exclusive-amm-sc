@@ -6,7 +6,7 @@ ffi = true
 solc = '0.8.26'
 fs_permissions = [
     { access = 'read', path = './'},
-    { access = 'read-write', path = './script/configs' }
+    { access = 'read-write', path = './script/config' }
 ]
 verbosity = 3
 

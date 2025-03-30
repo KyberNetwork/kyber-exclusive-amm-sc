@@ -6,3 +6,4 @@ uniswap/v4-periphery/=lib/v4-periphery/
 pancakeswap/infinity-core/=lib/infinity-periphery/lib/infinity-core/
 pancakeswap/infinity-periphery/=lib/infinity-periphery/
 solmate/=lib/v4-periphery/lib/v4-core/lib/solmate/
+permit2/=lib/v4-periphery/lib/permit2/

@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import 'forge-std/Script.sol';
 import 'forge-std/StdJson.sol';
+
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'openzeppelin-contracts/contracts/utils/Address.sol';
 
 contract BaseScript is Script {
@@ -20,14 +22,24 @@ contract BaseScript is Script {
   string path;
   string chainId;
 
-  function setUp() public {
-    path = string.concat(vm.projectRoot(), '/script/configs/');
+  address owner;
+  address[] operators;
+  address quoteSigner;
+  address surplusRecipient;
+
+  function setUp() public virtual {
+    path = string.concat(vm.projectRoot(), '/script/config/');
 
     uint256 _chainId;
     assembly {
       _chainId := chainid()
     }
     chainId = vm.toString(_chainId);
+
+    owner = _readAddress('owner');
+    operators = _readAddressArray('operators');
+    quoteSigner = _readAddress('quote-signer');
+    surplusRecipient = _readAddress('surplus-recipient');
   }
 
   function _getJsonString(string memory key) internal view returns (string memory) {

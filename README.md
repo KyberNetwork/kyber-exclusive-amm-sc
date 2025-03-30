@@ -38,7 +38,7 @@ $ forge snapshot
 
 ### Deploy
 
-First of all, fill the necessary information in the files in the [configs](./script/configs) folder:
+First of all, fill the necessary information in the files in the [config](./script/config) folder:
 
 - Address of the pool manager
 - Address of the owner
@@ -66,8 +66,8 @@ For Pancakeswap Infinity version, follow these steps to deploy the hook:
 
 - Replace the `salt` variable in the `script/pancakeswap/Deploy.s.sol` file with any value you want.
 - In this repository, run the following command to deploy the hook:
-    ```shell
-    $ forge script script/pancakeswap/Deploy.s.sol:DeployScript --rpc-url <rpc_url> --private-key <private_key>
-    ```
+  ```shell
+  $ forge script script/pancakeswap/Deploy.s.sol:DeployScript --rpc-url <rpc_url> --private-key <private_key>
+  ```
 
-The deployed addresses are automatically saved in the [configs](./script/configs) folder.
+The deployed addresses are automatically saved in the [config](./script/config) folder.
