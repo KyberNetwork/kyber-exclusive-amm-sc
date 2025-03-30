@@ -18,7 +18,7 @@ contract DeployScript is BaseScript {
     address initialSurplusRecipient = _readAddress('surplus-recipient');
 
     // Deploy the hook using CREATE3
-    bytes32 salt = keccak256("KS");
+    bytes32 salt = keccak256('KS');
     bytes memory bytecode = abi.encodePacked(
       type(PancakeswapInfinityELHook).creationCode,
       abi.encode(
