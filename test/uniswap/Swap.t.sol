@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import 'src/UniswapV4ELHook.sol';
+import './Base.t.sol';
 
-import 'uniswap/v4-core/src/libraries/SafeCast.sol';
-import 'uniswap/v4-core/test/utils/Deployers.sol';
-
-import {UniswapV4ELHookBaseTest} from 'test/uniswapV4ELHook/Base.t.sol';
-
-contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
-  function test_swap_exactInput_succeed(
+contract UniswapHookSwapTest is UniswapHookBaseTest {
+  function test_uniswap_swap_exactInput_succeed(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
@@ -45,7 +40,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
     );
 
     bytes memory signature = getSignature(
-      signerKey,
+      quoteSignerKey,
       keccak256(
         abi.encode(
           keyWithHook, zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
@@ -63,7 +58,9 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
       vm.expectEmit(true, true, true, true, hook);
 
       emit IELHook.ELHookTakeSurplusToken(
-        keyWithHook.toId(), Currency.unwrap(currencyOut), amountOutWithoutHook - maxAmountOut
+        PoolId.unwrap(keyWithHook.toId()),
+        Currency.unwrap(currencyOut),
+        amountOutWithoutHook - maxAmountOut
       );
     }
 
@@ -94,7 +91,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 5
-  function test_swap_exactInput_not_whitelistSender_shouldFail(
+  function test_uniswap_swap_exactInput_not_whitelistSender_shouldFail(
     uint256 addressIndex,
     int256 amountSpecified,
     bool zeroForOne,
@@ -127,7 +124,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_swap_exactOutput_shouldFail(
+  function test_uniswap_swap_exactOutput_shouldFail(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96
@@ -155,7 +152,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_swap_exactInput_with_expiredSignature_shouldFail(
+  function test_uniswap_swap_exactInput_with_expiredSignature_shouldFail(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
@@ -192,7 +189,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_swap_exactInput_with_exceededAmountIn_shouldFail(
+  function test_uniswap_swap_exactInput_with_exceededAmountIn_shouldFail(
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96,
@@ -231,7 +228,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 5
-  function test_swap_exactInput_with_invalidSignature_shouldFail(
+  function test_uniswap_swap_exactInput_with_invalidSignature_shouldFail(
     uint256 privKey,
     int256 amountSpecified,
     bool zeroForOne,
@@ -242,7 +239,7 @@ contract UniswapV4ELHookSwapTest is UniswapV4ELHookBaseTest {
     uint256 expiryTime
   ) public {
     privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
-    vm.assume(privKey != signerKey);
+    vm.assume(privKey != quoteSignerKey);
     (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
     normalizeTestInput(
       amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime

@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import 'src/UniswapV4ELHook.sol';
+import './Base.t.sol';
 
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
-
-import {UniswapV4ELHookBaseTest} from 'test/uniswapV4ELHook/Base.t.sol';
-
-contract UniswapV4ELHookClaimSurplusTest is UniswapV4ELHookBaseTest {
-  function test_claimSurplusTokens_succeed(
+contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
+  function test_uniswap_claimSurplusTokens_succeed(
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -47,7 +43,7 @@ contract UniswapV4ELHookClaimSurplusTest is UniswapV4ELHookBaseTest {
     );
   }
 
-  function test_claimSurplusTokens_notOperator_shouldFail(
+  function test_uniswap_claimSurplusTokens_notOperator_shouldFail(
     uint256 addressIndex,
     uint256 mintAmount0,
     uint256 mintAmount1,

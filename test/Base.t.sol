@@ -1,70 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import 'src/UniswapV4ELHook.sol';
-
-import 'uniswap/v4-core/src/libraries/SafeCast.sol';
-import 'uniswap/v4-core/test/utils/Deployers.sol';
-
+import 'forge-std/Test.sol';
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
-contract UniswapV4ELHookBaseTest is Deployers {
-  using SafeCast for *;
-
+abstract contract BaseTest is Test {
   address owner;
   address operator;
-  address signer;
-  uint256 signerKey;
+  address quoteSigner;
+  uint256 quoteSignerKey;
   address surplusRecipient;
-
   address[] actorAddresses;
 
-  address hook;
-  PoolKey keyWithoutHook;
-  PoolKey keyWithHook;
-
-  PoolSwapTest.TestSettings testSettings =
-    PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
-
-  function setUp() public {
+  function setUp() public virtual {
     owner = makeAddr('owner');
     operator = makeAddr('operator');
-    (signer, signerKey) = makeAddrAndKey('signer');
+    (quoteSigner, quoteSignerKey) = makeAddrAndKey('quoteSigner');
     surplusRecipient = makeAddr('surplusRecipient');
-
-    actorAddresses = [owner, operator, signer, surplusRecipient, makeAddr('anyone')];
-
-    initializeManagerRoutersAndPoolsWithLiq(IHooks(address(0)));
-    keyWithoutHook = key;
-
-    hook = address(
-      uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
-    );
-    deployCodeTo(
-      'UniswapV4ELHook.sol',
-      abi.encode(manager, owner, newAddressesLength1(operator), signer, surplusRecipient),
-      hook
-    );
-
-    (keyWithHook,) =
-      initPoolAndAddLiquidity(currency0, currency1, IHooks(hook), 3000, SQRT_PRICE_1_1);
-
-    vm.prank(owner);
-    IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
-  }
-
-  function unlockCallback(bytes calldata data) public returns (bytes memory) {
-    (uint256 mintAmount0, uint256 mintAmount1) = abi.decode(data, (uint256, uint256));
-    manager.mint(hook, uint256(uint160(Currency.unwrap(currency0))), mintAmount0);
-    manager.mint(hook, uint256(uint160(Currency.unwrap(currency1))), mintAmount1);
-
-    manager.sync(currency0);
-    IERC20(Currency.unwrap(currency0)).transfer(address(manager), mintAmount0);
-    manager.settle();
-
-    manager.sync(currency1);
-    IERC20(Currency.unwrap(currency1)).transfer(address(manager), mintAmount1);
-    manager.settle();
+    actorAddresses = [owner, operator, quoteSigner, surplusRecipient, makeAddr('anyone')];
   }
 
   function normalizeTestInput(
@@ -78,8 +31,8 @@ contract UniswapV4ELHookBaseTest is Deployers {
     amountSpecified = int256(bound(amountSpecified, -3e11, -1e3));
     sqrtPriceLimitX96 = uint160(
       zeroForOne
-        ? bound(sqrtPriceLimitX96, MIN_PRICE_LIMIT, SQRT_PRICE_1_1 - 100)
-        : bound(sqrtPriceLimitX96, SQRT_PRICE_1_1 + 100, MAX_PRICE_LIMIT)
+        ? bound(sqrtPriceLimitX96, getMinPriceLimit(), getSqrtPrice1_1() - 100)
+        : bound(sqrtPriceLimitX96, getSqrtPrice1_1() + 100, getMaxPriceLimit())
     );
     maxAmountIn = bound(maxAmountIn, -amountSpecified, type(int256).max - 1);
     maxExchangeRate = bound(maxExchangeRate, 0, type(int256).max / -amountSpecified);
@@ -122,4 +75,10 @@ contract UniswapV4ELHookBaseTest is Deployers {
     values = new uint256[](1);
     values[0] = value;
   }
+
+  function getMinPriceLimit() internal view virtual returns (uint160);
+
+  function getMaxPriceLimit() internal view virtual returns (uint160);
+
+  function getSqrtPrice1_1() internal view virtual returns (uint160);
 }

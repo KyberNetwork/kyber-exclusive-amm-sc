@@ -1,84 +1,38 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.26;
 
-import {IELHook} from './interfaces/IELHook.sol';
+import {BaseELHook} from '../BaseELHook.sol';
+import {IELHook} from '../interfaces/IELHook.sol';
+import {HookDataDecoder} from '../libraries/HookDataDecoder.sol';
 
 import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
-import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
-
 import {IUnlockCallback} from 'uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol';
+import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
+import {BaseHook} from 'uniswap/v4-periphery/src/utils/BaseHook.sol';
+
 import {BalanceDelta, toBalanceDelta} from 'uniswap/v4-core/src/types/BalanceDelta.sol';
 import {
   BeforeSwapDelta, BeforeSwapDeltaLibrary
 } from 'uniswap/v4-core/src/types/BeforeSwapDelta.sol';
 import {Currency} from 'uniswap/v4-core/src/types/Currency.sol';
+import {PoolId} from 'uniswap/v4-core/src/types/PoolId.sol';
 import {PoolKey} from 'uniswap/v4-core/src/types/PoolKey.sol';
-import {BaseHook} from 'uniswap/v4-periphery/src/utils/BaseHook.sol';
 
 import {SignatureChecker} from
   'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
-import {KSRescueV2, KyberSwapRole, Ownable} from 'ks-growth-utils-sc/KSRescueV2.sol';
-
-contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
-  /// @inheritdoc IELHook
-  mapping(address => bool) public whitelisted;
-
-  /// @inheritdoc IELHook
-  address public quoteSigner;
-
-  /// @inheritdoc IELHook
-  address public surplusRecipient;
-
+/// @title UniswapV4ELHook
+contract UniswapV4ELHook is BaseHook, BaseELHook, IUnlockCallback {
   constructor(
     IPoolManager _poolManager,
     address initialOwner,
     address[] memory initialOperators,
     address initialSigner,
     address initialSurplusRecipient
-  ) BaseHook(_poolManager) Ownable(initialOwner) {
-    for (uint256 i = 0; i < initialOperators.length; i++) {
-      operators[initialOperators[i]] = true;
-
-      emit UpdateOperator(initialOperators[i], true);
-    }
-
-    _updateQuoteSigner(initialSigner);
-    _updateSurplusRecipient(initialSurplusRecipient);
-  }
-
-  /// @inheritdoc IELHook
-  function whitelistSenders(address[] calldata senders, bool grantOrRevoke) public onlyOwner {
-    for (uint256 i = 0; i < senders.length; i++) {
-      whitelisted[senders[i]] = grantOrRevoke;
-
-      emit ELHookWhitelistSender(senders[i], grantOrRevoke);
-    }
-  }
-
-  /// @inheritdoc IELHook
-  function updateQuoteSigner(address newSigner) public onlyOwner {
-    _updateQuoteSigner(newSigner);
-  }
-
-  /// @inheritdoc IELHook
-  function updateSurplusRecipient(address newRecipient) public onlyOwner {
-    _updateSurplusRecipient(newRecipient);
-  }
-
-  function _updateQuoteSigner(address newSigner) internal {
-    require(newSigner != address(0), ELHookInvalidAddress());
-    quoteSigner = newSigner;
-
-    emit ELHookUpdateQuoteSigner(newSigner);
-  }
-
-  function _updateSurplusRecipient(address newRecipient) internal {
-    require(newRecipient != address(0), ELHookInvalidAddress());
-    surplusRecipient = newRecipient;
-
-    emit ELHookUpdateSurplusRecipient(newRecipient);
-  }
+  )
+    BaseHook(_poolManager)
+    BaseELHook(initialOwner, initialOperators, initialSigner, initialSurplusRecipient)
+  {}
 
   /// @inheritdoc IELHook
   function claimSurplusTokens(address[] calldata tokens, uint256[] calldata amounts)
@@ -107,6 +61,25 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
     emit ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
   }
 
+  function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+    return Hooks.Permissions({
+      beforeInitialize: false,
+      afterInitialize: false,
+      beforeAddLiquidity: false,
+      afterAddLiquidity: false,
+      beforeRemoveLiquidity: false,
+      afterRemoveLiquidity: false,
+      beforeSwap: true,
+      afterSwap: true,
+      beforeDonate: false,
+      afterDonate: false,
+      beforeSwapReturnDelta: false,
+      afterSwapReturnDelta: true,
+      afterAddLiquidityReturnDelta: false,
+      afterRemoveLiquidityReturnDelta: false
+    });
+  }
+
   function _beforeSwap(
     address sender,
     PoolKey calldata key,
@@ -122,7 +95,7 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
       int256 exchangeRateDenom,
       uint256 expiryTime,
       bytes memory signature
-    ) = abi.decode(hookData, (int256, int256, int256, uint256, bytes));
+    ) = HookDataDecoder.decodeAllHookData(hookData);
 
     require(block.timestamp <= expiryTime, ELHookExpiredSignature(expiryTime, block.timestamp));
     require(
@@ -152,13 +125,13 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
     BalanceDelta delta,
     bytes calldata hookData
   ) internal override returns (bytes4, int128) {
-    (, int256 maxExchangeRate, int256 exchangeRateDenom,,) =
-      abi.decode(hookData, (int256, int256, int256, uint256, bytes));
+    (int256 maxExchangeRate, int256 exchangeRateDenom) =
+      HookDataDecoder.decodeExchangeRate(hookData);
 
+    int128 amountIn;
+    int128 amountOut;
+    Currency currencyOut;
     unchecked {
-      int128 amountIn;
-      int128 amountOut;
-      Currency currencyOut;
       if (params.zeroForOne) {
         amountIn = -delta.amount0();
         amountOut = delta.amount1();
@@ -168,37 +141,23 @@ contract UniswapV4ELHook is IELHook, BaseHook, IUnlockCallback, KSRescueV2 {
         amountOut = delta.amount0();
         currencyOut = key.currency0;
       }
+    }
 
-      int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
+    int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
+
+    unchecked {
       int256 surplusAmount = maxAmountOut < amountOut ? amountOut - maxAmountOut : int256(0);
       if (surplusAmount > 0) {
         poolManager.mint(
           address(this), uint256(uint160(Currency.unwrap(currencyOut))), uint256(surplusAmount)
         );
 
-        emit ELHookTakeSurplusToken(key.toId(), Currency.unwrap(currencyOut), surplusAmount);
+        emit ELHookTakeSurplusToken(
+          PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), surplusAmount
+        );
       }
 
       return (this.afterSwap.selector, int128(surplusAmount));
     }
-  }
-
-  function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
-    return Hooks.Permissions({
-      beforeInitialize: false,
-      afterInitialize: false,
-      beforeAddLiquidity: false,
-      afterAddLiquidity: false,
-      beforeRemoveLiquidity: false,
-      afterRemoveLiquidity: false,
-      beforeSwap: true,
-      afterSwap: true,
-      beforeDonate: false,
-      afterDonate: false,
-      beforeSwapReturnDelta: false,
-      afterSwapReturnDelta: true,
-      afterAddLiquidityReturnDelta: false,
-      afterRemoveLiquidityReturnDelta: false
-    });
   }
 }
