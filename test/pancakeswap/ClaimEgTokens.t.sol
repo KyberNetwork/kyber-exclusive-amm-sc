@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
+contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusTokens_succeed(
+  function test_pancakeswap_claimEgTokens_succeed(
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -15,7 +15,7 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     mintAmount1 = bound(mintAmount1, 0, uint128(type(int128).max));
     claimAmount0 = bound(claimAmount0, 0, mintAmount0);
     claimAmount1 = bound(claimAmount1, 0, mintAmount1);
-    manager.unlock(abi.encode(mintAmount0, mintAmount1));
+    vault.lock(abi.encode(mintAmount0, mintAmount1));
 
     address[] memory tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
@@ -24,53 +24,53 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     amounts[0] = claimAmount0 == 0 ? mintAmount0 : claimAmount0;
     amounts[1] = claimAmount1 == 0 ? mintAmount1 : claimAmount1;
 
-    uint256 recipientAmount0Before = IERC20(Currency.unwrap(currency0)).balanceOf(surplusRecipient);
-    uint256 recipientAmount1Before = IERC20(Currency.unwrap(currency1)).balanceOf(surplusRecipient);
+    uint256 recipientAmount0Before = IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient);
+    uint256 recipientAmount1Before = IERC20(Currency.unwrap(currency1)).balanceOf(egRecipient);
 
     vm.prank(operator);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    hook.claimEgTokens(tokens, amounts);
 
     assertEq(
-      IERC20(Currency.unwrap(currency0)).balanceOf(surplusRecipient),
+      IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient),
       claimAmount0 == 0 ? mintAmount0 : claimAmount0 + recipientAmount0Before
     );
     assertEq(
-      IERC20(Currency.unwrap(currency1)).balanceOf(surplusRecipient),
+      IERC20(Currency.unwrap(currency1)).balanceOf(egRecipient),
       claimAmount1 == 0 ? mintAmount1 : claimAmount1 + recipientAmount1Before
     );
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
+  function test_pancakeswap_claimEgNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
     mintAmount = bound(mintAmount, 0, uint128(type(int128).max));
     claimAmount = bound(claimAmount, 0, mintAmount);
-    manager.unlock(abi.encode(mintAmount, type(uint256).max));
+    vault.lock(abi.encode(mintAmount, type(uint256).max));
 
     address[] memory tokens = new address[](1);
     tokens[0] = address(0);
     uint256[] memory amounts = new uint256[](1);
     amounts[0] = claimAmount == 0 ? mintAmount : claimAmount;
 
-    uint256 recipientBalanceBefore = surplusRecipient.balance;
+    uint256 recipientBalanceBefore = egRecipient.balance;
 
     vm.prank(operator);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount;
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    hook.claimEgTokens(tokens, amounts);
 
     assertEq(
-      surplusRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
+      egRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
     );
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusTokens_notOperator_shouldFail(
-    uint256 addressIndex,
+  function test_pancakeswap_claimEgTokens_withoutClaimRole_shouldFail(
+    uint256 actorIndex,
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -80,43 +80,47 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     mintAmount1 = bound(mintAmount1, 0, uint128(type(int128).max));
     claimAmount0 = bound(claimAmount0, 0, mintAmount0);
     claimAmount1 = bound(claimAmount1, 0, mintAmount1);
-    manager.unlock(abi.encode(mintAmount0, mintAmount1));
+    vault.lock(abi.encode(mintAmount0, mintAmount1));
 
     address[] memory tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
     uint256[] memory amounts = new uint256[](2);
 
-    address actor = actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)];
+    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
     vm.assume(actor != operator);
     vm.prank(actor);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    vm.expectRevert(abi.encodeWithSelector(KyberSwapRole.KSRoleNotOperator.selector, actor));
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, CLAIM_ROLE
+      )
+    );
+    hook.claimEgTokens(tokens, amounts);
   }
 
-  function unlockCallback(bytes calldata data) public returns (bytes memory) {
+  function lockAcquired(bytes calldata data) public returns (bytes memory) {
     (uint256 mintAmount0, uint256 mintAmount1) = abi.decode(data, (uint256, uint256));
 
     if (mintAmount1 == type(uint256).max) {
       Currency native = Currency.wrap(address(0));
 
-      manager.mint(hook, 0, mintAmount0);
+      vault.mint(address(hook), native, mintAmount0);
 
-      manager.sync(native);
-      manager.settle{value: mintAmount0}();
+      vault.sync(native);
+      vault.settle{value: mintAmount0}();
     } else {
-      manager.mint(hook, uint256(uint160(Currency.unwrap(currency0))), mintAmount0);
-      manager.mint(hook, uint256(uint160(Currency.unwrap(currency1))), mintAmount1);
+      vault.mint(address(hook), currency0, mintAmount0);
+      vault.mint(address(hook), currency1, mintAmount1);
 
-      manager.sync(currency0);
-      IERC20(Currency.unwrap(currency0)).transfer(address(manager), mintAmount0);
-      manager.settle();
+      vault.sync(currency0);
+      IERC20(Currency.unwrap(currency0)).transfer(address(vault), mintAmount0);
+      vault.settle();
 
-      manager.sync(currency1);
-      IERC20(Currency.unwrap(currency1)).transfer(address(manager), mintAmount1);
-      manager.settle();
+      vault.sync(currency1);
+      IERC20(Currency.unwrap(currency1)).transfer(address(vault), mintAmount1);
+      vault.settle();
     }
   }
 }

@@ -1,14 +1,16 @@
-# Kyberswap Exclusive Liquidity Hooks
+# Kyber Exclusive AMM
 
 [![Lint](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml)
 [![Tests](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml)
 
-This repository hosts the Kyberswap exclusive liquidity implementations of [Uniswap V4](https://github.com/Uniswap/v4-core) and [Pancakeswap Infinity](https://github.com/pancakeswap/infinity-core) Hooks.
-The liquidity pools created with these hooks are exclusive to Kyberswap DEX Aggregator and cannot be used by any other.
+Kyber Exclusive AMM is a market maker protocol built on top of Uniswap v4 and PancakeSwap Infinity. Leveraging the power of Uniswap v4 and PancakeSwap Infinity Hooks, Kyber Exclusive AMM offers the following features:
+
+- **Exclusive Liquidity**: Restricts the swaps on the liquidity pools created with these hooks to only the Kyberswap DEX Aggregator.
+- **Equilibrium Gain (EG) Absorption**: Absorbs the excess output of a swap when the pool offers a significantly higher price than the market. The absorbed tokens, called Equilibrium Gain (EG), are then redistributed to the liquidity providers as incentives.
 
 ## Documentation
 
-[[KEM][SC][TD] Uniswap V4 Exclusive Liquidity Hook](https://www.notion.so/kybernetwork/KEM-SC-TD-Uniswap-V4-Exclusive-Liquidity-Hook-1c026751887e80baa4eed97febdaa7c0)
+[[KEM][SC][TD] Uniswap v4 Exclusive Liquidity Hook](https://www.notion.so/kybernetwork/KEM-SC-TD-Uniswap-V4-Exclusive-Liquidity-Hook-1c026751887e80baa4eed97febdaa7c0)
 
 ## Usage
 
@@ -30,28 +32,21 @@ $ forge test
 $ forge fmt
 ```
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
 ### Deploy
 
-First of all, fill the necessary information in the files in the [config](./script/config) folder:
+First of all, set the necessary configurations in the [config](./script/config) folder:
 
-- Address of the pool manager
-- Address of the owner
-- Addresses of the operators
-- Address of the quote signer
-- Address of the surplus recipient
+- Address of the pool manager: [Uniswap v4](./script/config/uniswap-v4-pool-manager.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-cl-pool-manager.json)
+- Address of the admin: [admin.json](./script/config/admin.json)
+- Address of the quote signer: [quote-signer.json](./script/config/quote-signer.json)
+- Address of the equilibrium-gain recipient: [eg-recipient.json](./script/config/eg-recipient.json)
 
-These values need to be set for each `chainid` of the blockchain you want to deploy to.
+These values need to be set for each `chainid` corresponding to the blockchain you want to deploy to.
 
-For Uniswap V4 version, we need to find a suitable `salt` to deploy the hook to an address matching the hook's flags (`BEFORE_SWAP_FLAG`, `AFTER_SWAP_FLAG` and `AFTER_SWAP_RETURNS_DELTA_FLAG`).
+For Uniswap v4 version, we need to find a suitable `salt` to deploy the hook to an address matching the hook's flags (`BEFORE_SWAP_FLAG`, `AFTER_SWAP_FLAG` and `AFTER_SWAP_RETURNS_DELTA_FLAG`).
 Follow these steps to find a suitable salt and deploy the hook:
 
-- Clone the repository [Piwi](https://github.com/thepluck/piwi), which is a salt mining tool for Uniswap V4 hooks.
+- Clone the repository [Piwi](https://github.com/thepluck/piwi), which is a salt mining tool for Uniswap v4 hooks.
 - In the cloned repository, run the following command to find a suitable salt:
   ```
   $ cargo run --release -- create3 <deployer_address> C4 [--prefix <prefix>]
@@ -70,4 +65,4 @@ For Pancakeswap Infinity version, follow these steps to deploy the hook:
   $ forge script script/pancakeswap/Deploy.s.sol:DeployScript --rpc-url <rpc_url> --private-key <private_key>
   ```
 
-The deployed addresses are automatically saved in the [config](./script/config) folder.
+The deployed addresses are automatically saved in the [Uniswap v4](./script/config/uniswap-v4-kem-hook.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-kem-hook.json) config files.

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.0;
 
 import {IHooks} from 'pancakeswap/infinity-core/src/interfaces/IHooks.sol';
 import {IVault} from 'pancakeswap/infinity-core/src/interfaces/IVault.sol';
-import {CLPoolManager} from 'pancakeswap/infinity-core/src/pool-cl/CLPoolManager.sol';
 import {ICLHooks} from 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
 import {ICLPoolManager} from 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol';
 import {BalanceDelta} from 'pancakeswap/infinity-core/src/types/BalanceDelta.sol';
@@ -75,7 +74,7 @@ abstract contract BaseCLHook is ICLHooks {
 
   constructor(ICLPoolManager _poolManager) {
     poolManager = _poolManager;
-    vault = CLPoolManager(address(poolManager)).vault();
+    vault = _poolManager.vault();
   }
 
   /// @dev Only the pool manager may call this function

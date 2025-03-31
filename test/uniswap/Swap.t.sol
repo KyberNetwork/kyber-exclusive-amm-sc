@@ -52,12 +52,11 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
 
     Currency currencyOut = zeroForOne ? currency1 : currency0;
     int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
-    int256 surplusAmount =
+    int256 egAmount =
       maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0);
-    if (surplusAmount > 0) {
-      vm.expectEmit(true, true, true, true, hook);
-
-      emit IELHook.ELHookTakeSurplusToken(
+    if (egAmount > 0) {
+      vm.expectEmit(true, true, true, true, address(hook));
+      emit IKEMHook.AbsorbEgToken(
         PoolId.unwrap(keyWithHook.toId()),
         Currency.unwrap(currencyOut),
         amountOutWithoutHook - maxAmountOut
@@ -72,10 +71,10 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       amountOutWithHook = deltaWithHook.amount0();
     }
 
-    if (surplusAmount > 0) {
+    if (egAmount > 0) {
       assertEq(amountOutWithHook, maxAmountOut);
       assertEq(
-        manager.balanceOf(hook, uint256(uint160(Currency.unwrap(currencyOut)))),
+        manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(currencyOut)))),
         uint256(int256(amountOutWithoutHook - maxAmountOut))
       );
     } else {
@@ -83,22 +82,21 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
     }
 
     address[] memory tokens = newAddressesLength1(Currency.unwrap(currencyOut));
-    uint256[] memory amounts = newUint256sLength1(uint256(surplusAmount));
-    vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    uint256[] memory amounts = newUint256sLength1(uint256(egAmount));
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     vm.prank(operator);
-    IELHook(hook).claimSurplusTokens(tokens, newUint256sLength1(0));
+    hook.claimEgTokens(tokens, newUint256sLength1(0));
   }
 
-  /// forge-config: default.fuzz.runs = 5
+  /// forge-config: default.fuzz.runs = 20
   function test_uniswap_swap_exactInput_not_whitelistSender_shouldFail(
-    uint256 addressIndex,
+    uint256 actorIndex,
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96
   ) public {
-    PoolSwapTest router =
-      PoolSwapTest(actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)]);
+    PoolSwapTest router = PoolSwapTest(actors[bound(actorIndex, 0, actors.length - 1)]);
     vm.assume(router != swapRouter);
     deployCodeTo('PoolSwapTest.sol', abi.encode(manager), address(router));
 
@@ -116,7 +114,9 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.ELHookNotWhitelisted.selector, address(router)),
+        abi.encodeWithSelector(
+          IAccessControl.AccessControlUnauthorizedAccount.selector, router, SWAP_ROLE
+        ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -144,7 +144,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.ELHookExactOutputDisabled.selector),
+        abi.encodeWithSelector(IKEMHook.ExactOutputDisabled.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -181,7 +181,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.ELHookExpiredSignature.selector, expiryTime, block.timestamp),
+        abi.encodeWithSelector(IKEMHook.ExpiredSignature.selector, expiryTime, block.timestamp),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -218,16 +218,14 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(
-          IELHook.ELHookExceededMaxAmountIn.selector, maxAmountIn, -amountSpecified
-        ),
+        abi.encodeWithSelector(IKEMHook.ExceededMaxAmountIn.selector, maxAmountIn, -amountSpecified),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
   }
 
-  /// forge-config: default.fuzz.runs = 5
+  /// forge-config: default.fuzz.runs = 20
   function test_uniswap_swap_exactInput_with_invalidSignature_shouldFail(
     uint256 privKey,
     int256 amountSpecified,
@@ -267,7 +265,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IELHook.ELHookInvalidSignature.selector),
+        abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );

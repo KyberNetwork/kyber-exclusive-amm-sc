@@ -22,10 +22,9 @@ contract BaseScript is Script {
   string path;
   string chainId;
 
-  address owner;
-  address[] operators;
+  address admin;
   address quoteSigner;
-  address surplusRecipient;
+  address egRecipient;
 
   function setUp() public virtual {
     path = string.concat(vm.projectRoot(), '/script/config/');
@@ -36,10 +35,9 @@ contract BaseScript is Script {
     }
     chainId = vm.toString(_chainId);
 
-    owner = _readAddress('owner');
-    operators = _readAddressArray('operators');
+    admin = _readAddress('admin');
     quoteSigner = _readAddress('quote-signer');
-    surplusRecipient = _readAddress('surplus-recipient');
+    egRecipient = _readAddress('eg-recipient');
   }
 
   function _getJsonString(string memory key) internal view returns (string memory) {
@@ -53,6 +51,16 @@ contract BaseScript is Script {
   function _readAddress(string memory key) internal returns (address result) {
     string memory json = _getJsonString(key);
     result = json.readAddress(string.concat('.', chainId));
+
+    emit ReadAddress(key, result);
+  }
+
+  function _readAddressOr(string memory key, address defaultValue)
+    internal
+    returns (address result)
+  {
+    string memory json = _getJsonString(key);
+    result = json.readAddressOr(string.concat('.', chainId), defaultValue);
 
     emit ReadAddress(key, result);
   }

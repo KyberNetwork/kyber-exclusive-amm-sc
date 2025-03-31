@@ -3,20 +3,20 @@ pragma solidity ^0.8.0;
 
 import './Base.s.sol';
 
-/// @notice Deploys the PancakeswapInfinityELHook.sol Hook contract
-contract DeployScript is BasePancakeswapScript {
+/// @notice Deploys the PancakeSwapInfinityKEMHook.sol Hook contract
+contract DeployScript is BasePancakeSwapScript {
   function run() public {
     // Deploy the hook using CREATE3
     bytes32 salt = keccak256('KS');
     bytes memory bytecode = abi.encodePacked(
-      type(PancakeswapInfinityELHook).creationCode,
-      abi.encode(poolManager, owner, operators, quoteSigner, surplusRecipient)
+      type(PancakeSwapInfinityKEMHook).creationCode,
+      abi.encode(poolManager, admin, quoteSigner, egRecipient)
     );
 
     vm.broadcast();
     address deployedHook = _deployContract(salt, bytecode);
-    _writeAddress('pancakeswap-infinity-el-hook', deployedHook);
+    _writeAddress('pancakeswap-infinity-kem-hook', deployedHook);
 
-    emit DeployContract('pancakeswap-infinity-el-hook', deployedHook);
+    emit DeployContract('pancakeswap-infinity-kem-hook', deployedHook);
   }
 }

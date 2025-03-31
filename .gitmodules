@@ -1,10 +1,6 @@
 [submodule "lib/v4-periphery"]
 	path = lib/v4-periphery
 	url = https://github.com/Uniswap/v4-periphery
-[submodule "lib/ks-growth-utils-sc"]
-	path = lib/ks-growth-utils-sc
-	url = https://github.com/KyberNetwork/ks-growth-utils-sc
-	branch = liquidity-migration
 [submodule "lib/infinity-periphery"]
 	path = lib/infinity-periphery
 	url = https://github.com/pancakeswap/infinity-periphery
