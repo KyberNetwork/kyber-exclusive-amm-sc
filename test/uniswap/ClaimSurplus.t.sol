@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
+contract UniswapHookClaimEGTest is UniswapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusTokens_succeed(
+  function test_uniswap_claimEGTokens_succeed(
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -24,28 +24,28 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     amounts[0] = claimAmount0 == 0 ? mintAmount0 : claimAmount0;
     amounts[1] = claimAmount1 == 0 ? mintAmount1 : claimAmount1;
 
-    uint256 recipientAmount0Before = IERC20(Currency.unwrap(currency0)).balanceOf(surplusRecipient);
-    uint256 recipientAmount1Before = IERC20(Currency.unwrap(currency1)).balanceOf(surplusRecipient);
+    uint256 recipientAmount0Before = IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient);
+    uint256 recipientAmount1Before = IERC20(Currency.unwrap(currency1)).balanceOf(egRecipient);
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimEGTokens(tokens, amounts);
 
     assertEq(
-      IERC20(Currency.unwrap(currency0)).balanceOf(surplusRecipient),
+      IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient),
       claimAmount0 == 0 ? mintAmount0 : claimAmount0 + recipientAmount0Before
     );
     assertEq(
-      IERC20(Currency.unwrap(currency1)).balanceOf(surplusRecipient),
+      IERC20(Currency.unwrap(currency1)).balanceOf(egRecipient),
       claimAmount1 == 0 ? mintAmount1 : claimAmount1 + recipientAmount1Before
     );
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
+  function test_uniswap_claimEGNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
     mintAmount = bound(mintAmount, 0, uint128(type(int128).max));
     claimAmount = bound(claimAmount, 0, mintAmount);
     manager.unlock(abi.encode(mintAmount, type(uint256).max));
@@ -55,21 +55,21 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     uint256[] memory amounts = new uint256[](1);
     amounts[0] = claimAmount == 0 ? mintAmount : claimAmount;
 
-    uint256 recipientBalanceBefore = surplusRecipient.balance;
+    uint256 recipientBalanceBefore = egRecipient.balance;
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount;
-    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimEGTokens(tokens, amounts);
 
     assertEq(
-      surplusRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
+      egRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
     );
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_claimSurplusTokens_notOperator_shouldFail(
+  function test_uniswap_claimEGTokens_notOperator_shouldFail(
     uint256 addressIndex,
     uint256 mintAmount0,
     uint256 mintAmount1,
@@ -93,7 +93,7 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
     vm.expectRevert(abi.encodeWithSelector(KyberSwapRole.KSRoleNotOperator.selector, actor));
-    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimEGTokens(tokens, amounts);
   }
 
   function unlockCallback(bytes calldata data) public returns (bytes memory) {

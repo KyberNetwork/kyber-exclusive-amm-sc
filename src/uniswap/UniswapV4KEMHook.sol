@@ -26,18 +26,14 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
   constructor(
     IPoolManager _poolManager,
     address initialOwner,
-    address[] memory initialOperators,
-    address initialSigner,
-    address initialSurplusRecipient
-  )
-    BaseHook(_poolManager)
-    BaseKEMHook(initialOwner, initialOperators, initialSigner, initialSurplusRecipient)
-  {}
+    address initialQuoteSigner,
+    address initialEGRecipient
+  ) BaseHook(_poolManager) BaseKEMHook(initialOwner, initialQuoteSigner, initialEGRecipient) {}
 
   /// @inheritdoc IKEMHook
-  function claimSurplusTokens(address[] calldata tokens, uint256[] calldata amounts)
+  function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts)
     public
-    onlyOperator
+    onlyRole(CLAIM_ROLE)
   {
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
@@ -54,11 +50,11 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
       }
       if (amounts[i] > 0) {
         poolManager.burn(address(this), id, amounts[i]);
-        poolManager.take(Currency.wrap(tokens[i]), surplusRecipient, amounts[i]);
+        poolManager.take(Currency.wrap(tokens[i]), egRecipient, amounts[i]);
       }
     }
 
-    emit ClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit ClaimEgTokens(egRecipient, tokens, amounts);
   }
 
   function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -86,7 +82,7 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-    require(whitelisted[sender], NotWhitelisted(sender));
+    _checkRole(SWAP_ROLE, sender);
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (
@@ -146,18 +142,16 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
 
     unchecked {
-      int256 surplusAmount = maxAmountOut < amountOut ? amountOut - maxAmountOut : int256(0);
-      if (surplusAmount > 0) {
+      int256 egAmount = maxAmountOut < amountOut ? amountOut - maxAmountOut : int256(0);
+      if (egAmount > 0) {
         poolManager.mint(
-          address(this), uint256(uint160(Currency.unwrap(currencyOut))), uint256(surplusAmount)
+          address(this), uint256(uint160(Currency.unwrap(currencyOut))), uint256(egAmount)
         );
 
-        emit TakeSurplusToken(
-          PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), surplusAmount
-        );
+        emit AbsorbEgToken(PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), egAmount);
       }
 
-      return (this.afterSwap.selector, int128(surplusAmount));
+      return (this.afterSwap.selector, int128(egAmount));
     }
   }
 }

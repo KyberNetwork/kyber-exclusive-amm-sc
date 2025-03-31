@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.0;
 
 import {IHooks} from 'pancakeswap/infinity-core/src/interfaces/IHooks.sol';
 import {IVault} from 'pancakeswap/infinity-core/src/interfaces/IVault.sol';

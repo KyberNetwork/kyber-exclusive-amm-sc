@@ -25,7 +25,7 @@ contract BaseScript is Script {
   address owner;
   address[] operators;
   address quoteSigner;
-  address surplusRecipient;
+  address egRecipient;
 
   function setUp() public virtual {
     path = string.concat(vm.projectRoot(), '/script/config/');
@@ -39,7 +39,7 @@ contract BaseScript is Script {
     owner = _readAddress('owner');
     operators = _readAddressArray('operators');
     quoteSigner = _readAddress('quote-signer');
-    surplusRecipient = _readAddress('surplus-recipient');
+    egRecipient = _readAddress('eg-recipient');
   }
 
   function _getJsonString(string memory key) internal view returns (string memory) {

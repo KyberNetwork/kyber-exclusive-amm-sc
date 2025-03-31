@@ -11,9 +11,9 @@ import 'pancakeswap/infinity-core/test/pool-cl/helpers/LiquidityAmounts.sol';
 import 'pancakeswap/infinity-periphery/src/libraries/Actions.sol';
 import 'pancakeswap/infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol';
 
-import 'src/pancakeswap/PancakeswapInfinityKEMHook.sol';
+import 'src/pancakeswap/PancakeSwapInfinityKEMHook.sol';
 
-contract BasePancakeswapScript is BaseScript {
+contract BasePancakeSwapScript is BaseScript {
   ICLPoolManager poolManager;
   ICLPositionManager positionManager;
   IHooks hook;

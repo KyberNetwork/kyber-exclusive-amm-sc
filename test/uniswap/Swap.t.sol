@@ -52,12 +52,12 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
 
     Currency currencyOut = zeroForOne ? currency1 : currency0;
     int256 maxAmountOut = amountIn * maxExchangeRate / exchangeRateDenom;
-    int256 surplusAmount =
+    int256 egAmount =
       maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0);
-    if (surplusAmount > 0) {
+    if (egAmount > 0) {
       vm.expectEmit(true, true, true, true, hook);
 
-      emit IKEMHook.TakeSurplusToken(
+      emit IKEMHook.TakeEGToken(
         PoolId.unwrap(keyWithHook.toId()),
         Currency.unwrap(currencyOut),
         amountOutWithoutHook - maxAmountOut
@@ -72,7 +72,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       amountOutWithHook = deltaWithHook.amount0();
     }
 
-    if (surplusAmount > 0) {
+    if (egAmount > 0) {
       assertEq(amountOutWithHook, maxAmountOut);
       assertEq(
         manager.balanceOf(hook, uint256(uint160(Currency.unwrap(currencyOut)))),
@@ -83,11 +83,11 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
     }
 
     address[] memory tokens = newAddressesLength1(Currency.unwrap(currencyOut));
-    uint256[] memory amounts = newUint256sLength1(uint256(surplusAmount));
+    uint256[] memory amounts = newUint256sLength1(uint256(egAmount));
     vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
     vm.prank(operator);
-    IKEMHook(hook).claimSurplusTokens(tokens, newUint256sLength1(0));
+    IKEMHook(hook).claimEGTokens(tokens, newUint256sLength1(0));
   }
 
   /// forge-config: default.fuzz.runs = 5

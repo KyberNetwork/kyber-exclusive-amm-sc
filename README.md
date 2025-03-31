@@ -3,9 +3,9 @@
 [![Lint](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml)
 [![Tests](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml)
 
-Kyber Exclusive AMM is an market maker protcol built on top of [Uniswap v4](https://github.com/Uniswap/v4-core) and [Pancakeswap Infinity](https://github.com/pancakeswap/infinity-core). Leveraging the power of Uniswap V4 and Pancakeswap Infinity Hooks, Kyber Exclusive AMM offers the following features:
+Kyber Exclusive AMM is a market maker protocol built on top of Uniswap v4 and PancakeSwap Infinity. Leveraging the power of Uniswap V4 and PancakeSwap Infinity Hooks, Kyber Exclusive AMM offers the following features:
 - **Exclusive Liquidity**: Restricts the swaps on the liquidity pools created with these hooks to only the Kyberswap DEX Aggregator.
-- **Equilibrium Gain (EG) Absorbtion**: Absorbs the excess output of a swap when the pool offers significantly higher price than the market.
+- **Equilibrium Gain (EG) Absorption**: Absorbs the excess output of a swap when the pool offers a significantly higher price than the market. The absorbed tokens, called Equilibrium Gain (EG), are then redistributed to the liquidity providers as incentives.
 
 ## Documentation
 
@@ -29,12 +29,6 @@ $ forge test
 
 ```shell
 $ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
 ```
 
 ### Deploy

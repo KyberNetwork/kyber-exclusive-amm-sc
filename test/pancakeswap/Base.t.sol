@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
 import 'src/BaseKEMHook.sol';
-import 'src/pancakeswap/PancakeswapInfinityKEMHook.sol';
+import 'src/pancakeswap/PancakeSwapInfinityKEMHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'pancakeswap/infinity-core/src/libraries/CustomRevert.sol';
@@ -13,7 +13,7 @@ import 'pancakeswap/infinity-core/test/helpers/TokenFixture.sol';
 import 'pancakeswap/infinity-core/test/pool-cl/helpers/CLPoolManagerRouter.sol';
 import 'pancakeswap/infinity-core/test/pool-cl/helpers/Deployers.sol';
 
-contract PancakeswapHookBaseTest is BaseTest, Deployers, TokenFixture {
+contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture {
   using CLPoolParametersHelper for bytes32;
 
   IVault public vault;
@@ -33,8 +33,8 @@ contract PancakeswapHookBaseTest is BaseTest, Deployers, TokenFixture {
     (vault, poolManager) = createFreshManager();
     swapRouter = new CLPoolManagerRouter(vault, poolManager);
     hook = address(
-      new PancakeswapInfinityKEMHook(
-        poolManager, owner, newAddressesLength1(operator), quoteSigner, surplusRecipient
+      new PancakeSwapInfinityKEMHook(
+        poolManager, owner, newAddressesLength1(operator), quoteSigner, egRecipient
       )
     );
 

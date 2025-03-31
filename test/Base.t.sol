@@ -9,15 +9,15 @@ abstract contract BaseTest is Test {
   address operator;
   address quoteSigner;
   uint256 quoteSignerKey;
-  address surplusRecipient;
+  address egRecipient;
   address[] actorAddresses;
 
   function setUp() public virtual {
     owner = makeAddr('owner');
     operator = makeAddr('operator');
     (quoteSigner, quoteSignerKey) = makeAddrAndKey('quoteSigner');
-    surplusRecipient = makeAddr('surplusRecipient');
-    actorAddresses = [owner, operator, quoteSigner, surplusRecipient, makeAddr('anyone')];
+    egRecipient = makeAddr('egRecipient');
+    actorAddresses = [owner, operator, quoteSigner, egRecipient, makeAddr('anyone')];
 
     vm.deal(address(this), type(uint256).max);
   }
