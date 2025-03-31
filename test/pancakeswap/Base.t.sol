@@ -10,7 +10,8 @@ import 'pancakeswap/infinity-core/src/libraries/CustomRevert.sol';
 import 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
 import 'pancakeswap/infinity-core/src/pool-cl/libraries/CLPoolParametersHelper.sol';
 import 'pancakeswap/infinity-core/test/helpers/TokenFixture.sol';
-import 'pancakeswap/infinity-core/test/pool-cl/helpers/CLPoolManagerRouter.sol';
+import {CLPoolManagerRouter} from
+  'pancakeswap/infinity-core/test/pool-cl/helpers/CLPoolManagerRouter.sol';
 import 'pancakeswap/infinity-core/test/pool-cl/helpers/Deployers.sol';
 
 contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture {
