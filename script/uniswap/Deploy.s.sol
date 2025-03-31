@@ -1,48 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import '../Base.s.sol';
-
-import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
-import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
-import {HookMiner} from 'uniswap/v4-periphery/src/utils/HookMiner.sol';
-
-import 'src/uniswap/UniswapV4ELHook.sol';
+import './Base.s.sol';
 
 /// @notice Mines the address and deploys the UniswapV4ELHook.sol Hook contract
-contract DeployScript is BaseScript {
-  address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
-
+contract DeployScript is BaseUniswapScript {
   function run() public {
-    IPoolManager poolManager = IPoolManager(_readAddress('uniswap-v4-pool-manager'));
-    address initialOwner = _readAddress('owner');
-    address[] memory initialOperators = _readAddressArray('operators');
-    address initialQuoteSigner = _readAddress('quote-signer');
-    address initialSurplusRecipient = _readAddress('surplus-recipient');
-
-    // hook contracts must have specific flags encoded in the address
-    uint160 flags =
-      uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
-
-    bytes memory constructorArgs = abi.encode(
-      poolManager, initialOwner, initialOperators, initialQuoteSigner, initialSurplusRecipient
+    // Deploy the hook using CREATE3
+    // Follow the instructions in
+    // https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/?tab=readme-ov-file#deploy
+    // to find the suitable salt
+    bytes32 salt = 0x000000000000000000000000000000000000000034b3d923ecc20000000007e1;
+    bytes memory bytecode = abi.encodePacked(
+      type(UniswapV4ELHook).creationCode,
+      abi.encode(poolManager, owner, operators, quoteSigner, surplusRecipient)
     );
 
-    // Mine a salt that will produce a hook address with the correct flags
-    (address hookAddress, bytes32 salt) =
-      HookMiner.find(CREATE2_DEPLOYER, flags, type(UniswapV4ELHook).creationCode, constructorArgs);
-
-    // Deploy the hook using CREATE2
     vm.broadcast();
-    UniswapV4ELHook hook = new UniswapV4ELHook{salt: salt}(
-      IPoolManager(poolManager),
-      initialOwner,
-      initialOperators,
-      initialQuoteSigner,
-      initialSurplusRecipient
-    );
-    require(address(hook) == hookAddress, 'DeployScript: hook address mismatch');
+    address deployedHook = _deployContract(salt, bytecode);
+    _writeAddress('uniswap-v4-el-hook', deployedHook);
 
-    emit DeployContract('uniswap-v4-el-hook', address(hook));
+    emit DeployContract('uniswap-v4-el-hook', deployedHook);
   }
 }

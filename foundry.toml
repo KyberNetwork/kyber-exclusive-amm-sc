@@ -6,7 +6,7 @@ ffi = true
 solc = '0.8.26'
 fs_permissions = [
     { access = 'read', path = './'},
-    { access = 'read-write', path = './script/configs' }
+    { access = 'read-write', path = './script/config' }
 ]
 verbosity = 3
 
@@ -18,10 +18,7 @@ number_underscore = 'thousands'
 sort_imports = true
 
 [rpc_endpoints]
-eth_sepolia = "${RPC_ETH_SEPOLIA}"
-bnb_testnet = "${RPC_BNB_TESTNET}"
-
-[etherscan]
-sepolia = { key = "${ETHERSCAN_MAINNET_KEY}" }
+sepolia = "${RPC_ETH_SEPOLIA}"
+bnb_smart_chain_testnet = "${RPC_BSC_TESTNET}"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

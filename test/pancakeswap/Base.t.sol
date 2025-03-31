@@ -71,20 +71,6 @@ contract PancakeswapHookBaseTest is BaseTest, Deployers, TokenFixture {
     IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
   }
 
-  function lockAcquired(bytes calldata data) public returns (bytes memory) {
-    (uint256 mintAmount0, uint256 mintAmount1) = abi.decode(data, (uint256, uint256));
-    vault.mint(hook, currency0, mintAmount0);
-    vault.mint(hook, currency1, mintAmount1);
-
-    vault.sync(currency0);
-    IERC20(Currency.unwrap(currency0)).transfer(address(vault), mintAmount0);
-    vault.settle();
-
-    vault.sync(currency1);
-    IERC20(Currency.unwrap(currency1)).transfer(address(vault), mintAmount1);
-    vault.settle();
-  }
-
   function getMinPriceLimit() internal pure override returns (uint160) {
     return MIN_PRICE_LIMIT;
   }
