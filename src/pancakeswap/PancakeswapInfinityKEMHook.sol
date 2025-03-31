@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {BaseELHook} from '../BaseELHook.sol';
+import {BaseKEMHook} from '../BaseKEMHook.sol';
 
-import {IELHook} from '../interfaces/IELHook.sol';
+import {IKEMHook} from '../interfaces/IKEMHook.sol';
 import {HookDataDecoder} from '../libraries/HookDataDecoder.sol';
 import {BaseCLHook} from './BaseCLHook.sol';
 
@@ -21,8 +21,8 @@ import {PoolKey} from 'pancakeswap/infinity-core/src/types/PoolKey.sol';
 import {SignatureChecker} from
   'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
-/// @title PancakeswapInfinityELHook
-contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
+/// @title PancakeswapInfinityKEMHook
+contract PancakeswapInfinityKEMHook is BaseCLHook, BaseKEMHook {
   constructor(
     ICLPoolManager _poolManager,
     address initialOwner,
@@ -31,15 +31,15 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
     address initialSurplusRecipient
   )
     BaseCLHook(_poolManager)
-    BaseELHook(initialOwner, initialOperators, initialSigner, initialSurplusRecipient)
+    BaseKEMHook(initialOwner, initialOperators, initialSigner, initialSurplusRecipient)
   {}
 
-  /// @inheritdoc IELHook
+  /// @inheritdoc IKEMHook
   function claimSurplusTokens(address[] calldata tokens, uint256[] calldata amounts)
     public
     onlyOperator
   {
-    require(tokens.length == amounts.length, ELHookMismatchedArrayLengths());
+    require(tokens.length == amounts.length, MismatchedArrayLengths());
 
     vault.lock(abi.encode(tokens, amounts));
   }
@@ -58,7 +58,7 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
       }
     }
 
-    emit ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit ClaimSurplusTokens(surplusRecipient, tokens, amounts);
   }
 
   function getHooksRegistrationBitmap() external pure override returns (uint16) {
@@ -88,8 +88,8 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
     ICLPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-    require(whitelisted[sender], ELHookNotWhitelisted(sender));
-    require(params.amountSpecified < 0, ELHookExactOutputDisabled());
+    require(whitelisted[sender], NotWhitelisted(sender));
+    require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (
       int256 maxAmountIn,
@@ -99,10 +99,10 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
       bytes memory signature
     ) = HookDataDecoder.decodeAllHookData(hookData);
 
-    require(block.timestamp <= expiryTime, ELHookExpiredSignature(expiryTime, block.timestamp));
+    require(block.timestamp <= expiryTime, ExpiredSignature(expiryTime, block.timestamp));
     require(
       -params.amountSpecified <= maxAmountIn,
-      ELHookExceededMaxAmountIn(maxAmountIn, -params.amountSpecified)
+      ExceededMaxAmountIn(maxAmountIn, -params.amountSpecified)
     );
     require(
       SignatureChecker.isValidSignatureNow(
@@ -114,7 +114,7 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
         ),
         signature
       ),
-      ELHookInvalidSignature()
+      InvalidSignature()
     );
 
     return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -152,7 +152,7 @@ contract PancakeswapInfinityELHook is BaseCLHook, BaseELHook {
       if (surplusAmount > 0) {
         vault.mint(address(this), currencyOut, uint256(surplusAmount));
 
-        emit ELHookTakeSurplusToken(
+        emit TakeSurplusToken(
           PoolId.unwrap(key.toId()), Currency.unwrap(currencyOut), surplusAmount
         );
       }

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import 'src/BaseELHook.sol';
-import 'src/pancakeswap/PancakeswapInfinityELHook.sol';
+import 'src/BaseKEMHook.sol';
+import 'src/pancakeswap/PancakeswapInfinityKEMHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'pancakeswap/infinity-core/src/libraries/CustomRevert.sol';
@@ -33,7 +33,7 @@ contract PancakeswapHookBaseTest is BaseTest, Deployers, TokenFixture {
     (vault, poolManager) = createFreshManager();
     swapRouter = new CLPoolManagerRouter(vault, poolManager);
     hook = address(
-      new PancakeswapInfinityELHook(
+      new PancakeswapInfinityKEMHook(
         poolManager, owner, newAddressesLength1(operator), quoteSigner, surplusRecipient
       )
     );
@@ -68,7 +68,7 @@ contract PancakeswapHookBaseTest is BaseTest, Deployers, TokenFixture {
     poolManager.initialize(keyWithHook, getSqrtPrice1_1());
 
     vm.prank(owner);
-    IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
+    IKEMHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
   }
 
   function getMinPriceLimit() internal pure override returns (uint160) {

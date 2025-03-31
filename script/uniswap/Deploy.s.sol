@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import './Base.s.sol';
 
-/// @notice Mines the address and deploys the UniswapV4ELHook.sol Hook contract
+/// @notice Mines the address and deploys the UniswapV4KEMHook.sol Hook contract
 contract DeployScript is BaseUniswapScript {
   function run() public {
     // Deploy the hook using CREATE3
@@ -12,14 +12,14 @@ contract DeployScript is BaseUniswapScript {
     // to find the suitable salt
     bytes32 salt = 0x000000000000000000000000000000000000000034b3d923ecc20000000007e1;
     bytes memory bytecode = abi.encodePacked(
-      type(UniswapV4ELHook).creationCode,
+      type(UniswapV4KEMHook).creationCode,
       abi.encode(poolManager, owner, operators, quoteSigner, surplusRecipient)
     );
 
     vm.broadcast();
     address deployedHook = _deployContract(salt, bytecode);
-    _writeAddress('uniswap-v4-el-hook', deployedHook);
+    _writeAddress('uniswap-v4-kem-hook', deployedHook);
 
-    emit DeployContract('uniswap-v4-el-hook', deployedHook);
+    emit DeployContract('uniswap-v4-kem-hook', deployedHook);
   }
 }

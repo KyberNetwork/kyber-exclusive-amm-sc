@@ -29,10 +29,10 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit IKEMHook.ClaimSurplusTokens(surplusRecipient, tokens, amounts);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
 
     assertEq(
       IERC20(Currency.unwrap(currency0)).balanceOf(surplusRecipient),
@@ -59,9 +59,9 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, hook);
-    emit IELHook.ELHookClaimSurplusTokens(surplusRecipient, tokens, amounts);
+    emit IKEMHook.ClaimSurplusTokens(surplusRecipient, tokens, amounts);
     amounts[0] = claimAmount;
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
 
     assertEq(
       surplusRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
@@ -93,7 +93,7 @@ contract UniswapHookClaimSurplusTest is UniswapHookBaseTest {
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
     vm.expectRevert(abi.encodeWithSelector(KyberSwapRole.KSRoleNotOperator.selector, actor));
-    IELHook(hook).claimSurplusTokens(tokens, amounts);
+    IKEMHook(hook).claimSurplusTokens(tokens, amounts);
   }
 
   function unlockCallback(bytes calldata data) public returns (bytes memory) {

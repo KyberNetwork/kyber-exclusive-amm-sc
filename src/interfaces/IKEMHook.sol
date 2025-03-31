@@ -2,55 +2,53 @@
 pragma solidity ^0.8.0;
 
 /**
- * @title IELHook
- * @notice Common interface for the ELHook contracts
+ * @title IKEMHook
+ * @notice Common interface for the KEMHook contracts
  */
-interface IELHook {
+interface IKEMHook {
   /// @notice Thrown when the sender is not whitelisted
-  error ELHookNotWhitelisted(address sender);
+  error NotWhitelisted(address sender);
 
   /// @notice Thrown when the new address to be updated is the zero address
-  error ELHookInvalidAddress();
+  error InvalidAddress();
 
   /// @notice Thrown when trying to swap in exact output mode
-  error ELHookExactOutputDisabled();
+  error ExactOutputDisabled();
 
   /**
    * @notice Thrown when the signature is expired
    * @param expiryTime the expiry time
    * @param currentTime the current time
    */
-  error ELHookExpiredSignature(uint256 expiryTime, uint256 currentTime);
+  error ExpiredSignature(uint256 expiryTime, uint256 currentTime);
 
   /// @notice Thrown when the signature is invalid
-  error ELHookInvalidSignature();
+  error InvalidSignature();
 
   /**
    * @notice Thrown when the input amount exceeds the maximum amount
    * @param maxAmountIn the maximum input amount
    * @param amountIn the actual input amount
    */
-  error ELHookExceededMaxAmountIn(int256 maxAmountIn, int256 amountIn);
+  error ExceededMaxAmountIn(int256 maxAmountIn, int256 amountIn);
 
   /// @notice Thrown when the lengths of the arrays are mismatched
-  error ELHookMismatchedArrayLengths();
+  error MismatchedArrayLengths();
 
   /// @notice Emitted when the whitelist status of an address is updated
-  event ELHookWhitelistSender(address indexed sender, bool grantOrRevoke);
+  event WhitelistSender(address indexed sender, bool grantOrRevoke);
 
   /// @notice Emitted when the signer is updated
-  event ELHookUpdateQuoteSigner(address indexed quoteSigner);
+  event UpdateQuoteSigner(address indexed quoteSigner);
 
   /// @notice Emitted when the surplus recipient is updated
-  event ELHookUpdateSurplusRecipient(address indexed surplusRecipient);
+  event UpdateSurplusRecipient(address indexed surplusRecipient);
 
   /// @notice Emitted when a surplus amount of token is taken
-  event ELHookTakeSurplusToken(bytes32 indexed poolId, address indexed token, int256 amount);
+  event TakeSurplusToken(bytes32 indexed poolId, address indexed token, int256 amount);
 
   /// @notice Emitted when surplus tokens are claimed
-  event ELHookClaimSurplusTokens(
-    address indexed surplusRecipient, address[] tokens, uint256[] amounts
-  );
+  event ClaimSurplusTokens(address indexed surplusRecipient, address[] tokens, uint256[] amounts);
 
   /// @notice Return the whitelist status of an address
   function whitelisted(address sender) external view returns (bool);

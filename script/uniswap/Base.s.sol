@@ -13,7 +13,7 @@ import 'uniswap/v4-periphery/src/libraries/Actions.sol';
 
 import 'permit2/src/interfaces/IAllowanceTransfer.sol';
 
-import 'src/uniswap/UniswapV4ELHook.sol';
+import 'src/uniswap/UniswapV4KEMHook.sol';
 
 contract BaseUniswapScript is BaseScript {
   using Address for address;
@@ -28,7 +28,7 @@ contract BaseUniswapScript is BaseScript {
 
     poolManager = IPoolManager(_readAddress('uniswap-v4-pool-manager'));
     positionManager = IPositionManager(_readAddress('uniswap-v4-position-manager'));
-    hook = IHooks(_readAddress('uniswap-v4-el-hook'));
+    hook = IHooks(_readAddress('uniswap-v4-kem-hook'));
     permit2 = abi.decode(
       address(positionManager).functionStaticCall(abi.encodeWithSignature('permit2()')),
       (IAllowanceTransfer)

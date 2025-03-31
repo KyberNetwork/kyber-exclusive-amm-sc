@@ -1,10 +1,11 @@
-# Kyberswap Exclusive Liquidity Hooks
+# Kyber Exclusive AMM
 
 [![Lint](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/lint.yml)
 [![Tests](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml/badge.svg)](https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/actions/workflows/test.yml)
 
-This repository hosts the Kyberswap exclusive liquidity implementations of [Uniswap V4](https://github.com/Uniswap/v4-core) and [Pancakeswap Infinity](https://github.com/pancakeswap/infinity-core) Hooks.
-The liquidity pools created with these hooks are exclusive to Kyberswap DEX Aggregator and cannot be used by any other.
+Kyber Exclusive AMM is an market maker protcol built on top of [Uniswap v4](https://github.com/Uniswap/v4-core) and [Pancakeswap Infinity](https://github.com/pancakeswap/infinity-core). Leveraging the power of Uniswap V4 and Pancakeswap Infinity Hooks, Kyber Exclusive AMM offers the following features:
+- **Exclusive Liquidity**: Restricts the swaps on the liquidity pools created with these hooks to only the Kyberswap DEX Aggregator.
+- **Equilibrium Gain (EG) Absorbtion**: Absorbs the excess output of a swap when the pool offers significantly higher price than the market.
 
 ## Documentation
 

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import 'src/BaseELHook.sol';
-import 'src/uniswap/UniswapV4ELHook.sol';
+import 'src/BaseKEMHook.sol';
+import 'src/uniswap/UniswapV4KEMHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'uniswap/v4-core/src/libraries/CustomRevert.sol';
@@ -27,7 +27,7 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
       uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
     );
     deployCodeTo(
-      'UniswapV4ELHook.sol',
+      'UniswapV4KEMHook.sol',
       abi.encode(manager, owner, newAddressesLength1(operator), quoteSigner, surplusRecipient),
       hook
     );
@@ -36,7 +36,7 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
       initPoolAndAddLiquidity(currency0, currency1, IHooks(hook), 3000, SQRT_PRICE_1_1);
 
     vm.prank(owner);
-    IELHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
+    IKEMHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
   }
 
   function getMinPriceLimit() internal pure override returns (uint160) {
