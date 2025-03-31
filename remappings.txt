@@ -1,5 +1,5 @@
 forge-std/=lib/forge-std/src/
-openzeppelin-contracts/=lib/v4-periphery/lib/v4-core/lib/openzeppelin-contracts/
+openzeppelin-contracts/=lib/openzeppelin-contracts/
 uniswap/v4-core/=lib/v4-periphery/lib/v4-core/
 uniswap/v4-periphery/=lib/v4-periphery/
 pancakeswap/infinity-core/=lib/infinity-periphery/lib/infinity-core/
