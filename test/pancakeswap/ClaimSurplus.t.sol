@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
+contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEGTokens_succeed(
+  function test_pancakeswap_claimEgTokens_succeed(
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -28,11 +28,11 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
     uint256 recipientAmount1Before = IERC20(Currency.unwrap(currency1)).balanceOf(egRecipient);
 
     vm.prank(operator);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    IKEMHook(hook).claimEGTokens(tokens, amounts);
+    hook.claimEgTokens(tokens, amounts);
 
     assertEq(
       IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient),
@@ -45,7 +45,7 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEGNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
+  function test_pancakeswap_claimEgNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
     mintAmount = bound(mintAmount, 0, uint128(type(int128).max));
     claimAmount = bound(claimAmount, 0, mintAmount);
     vault.lock(abi.encode(mintAmount, type(uint256).max));
@@ -58,10 +58,10 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
     uint256 recipientBalanceBefore = egRecipient.balance;
 
     vm.prank(operator);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount;
-    IKEMHook(hook).claimEGTokens(tokens, amounts);
+    hook.claimEgTokens(tokens, amounts);
 
     assertEq(
       egRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
@@ -69,8 +69,8 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEGTokens_notOperator_shouldFail(
-    uint256 addressIndex,
+  function test_pancakeswap_claimEgTokens_withoutClaimRole_shouldFail(
+    uint256 actorIndex,
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -87,13 +87,17 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
     tokens[1] = Currency.unwrap(currency1);
     uint256[] memory amounts = new uint256[](2);
 
-    address actor = actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)];
+    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
     vm.assume(actor != operator);
     vm.prank(actor);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    vm.expectRevert(abi.encodeWithSelector(KyberSwapRole.KSRoleNotOperator.selector, actor));
-    IKEMHook(hook).claimEGTokens(tokens, amounts);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, CLAIM_ROLE
+      )
+    );
+    hook.claimEgTokens(tokens, amounts);
   }
 
   function lockAcquired(bytes calldata data) public returns (bytes memory) {
@@ -102,13 +106,13 @@ contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
     if (mintAmount1 == type(uint256).max) {
       Currency native = Currency.wrap(address(0));
 
-      vault.mint(hook, native, mintAmount0);
+      vault.mint(address(hook), native, mintAmount0);
 
       vault.sync(native);
       vault.settle{value: mintAmount0}();
     } else {
-      vault.mint(hook, currency0, mintAmount0);
-      vault.mint(hook, currency1, mintAmount1);
+      vault.mint(address(hook), currency0, mintAmount0);
+      vault.mint(address(hook), currency1, mintAmount1);
 
       vault.sync(currency0);
       IERC20(Currency.unwrap(currency0)).transfer(address(vault), mintAmount0);

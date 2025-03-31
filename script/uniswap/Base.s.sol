@@ -28,7 +28,7 @@ contract BaseUniswapScript is BaseScript {
 
     poolManager = IPoolManager(_readAddress('uniswap-v4-pool-manager'));
     positionManager = IPositionManager(_readAddress('uniswap-v4-position-manager'));
-    hook = IHooks(_readAddress('uniswap-v4-kem-hook'));
+    hook = IHooks(_readAddressOr('uniswap-v4-kem-hook', address(0)));
     permit2 = abi.decode(
       address(positionManager).functionStaticCall(abi.encodeWithSignature('permit2()')),
       (IAllowanceTransfer)

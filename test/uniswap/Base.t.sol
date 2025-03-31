@@ -10,7 +10,6 @@ import 'uniswap/v4-core/src/libraries/CustomRevert.sol';
 import 'uniswap/v4-core/test/utils/Deployers.sol';
 
 contract UniswapHookBaseTest is BaseTest, Deployers {
-  address hook;
   PoolKey keyWithoutHook;
   PoolKey keyWithHook;
 
@@ -23,20 +22,24 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
     initializeManagerRoutersAndPoolsWithLiq(IHooks(address(0)));
     keyWithoutHook = key;
 
-    hook = address(
-      uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG)
+    hook = IKEMHook(
+      address(
+        uint160(
+          Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        )
+      )
     );
     deployCodeTo(
-      'UniswapV4KEMHook.sol',
-      abi.encode(manager, owner, newAddressesLength1(operator), quoteSigner, egRecipient),
-      hook
+      'UniswapV4KEMHook.sol', abi.encode(manager, admin, quoteSigner, egRecipient), address(hook)
     );
 
     (keyWithHook,) =
-      initPoolAndAddLiquidity(currency0, currency1, IHooks(hook), 3000, SQRT_PRICE_1_1);
+      initPoolAndAddLiquidity(currency0, currency1, IHooks(address(hook)), 3000, SQRT_PRICE_1_1);
 
-    vm.prank(owner);
-    IKEMHook(hook).whitelistSenders(newAddressesLength1(address(swapRouter)), true);
+    vm.startPrank(admin);
+    hook.grantRole(CLAIM_ROLE, operator);
+    hook.grantRole(SWAP_ROLE, address(swapRouter));
+    vm.stopPrank();
   }
 
   function getMinPriceLimit() internal pure override returns (uint160) {

@@ -10,7 +10,7 @@ contract DeployScript is BasePancakeSwapScript {
     bytes32 salt = keccak256('KS');
     bytes memory bytecode = abi.encodePacked(
       type(PancakeSwapInfinityKEMHook).creationCode,
-      abi.encode(poolManager, owner, operators, quoteSigner, egRecipient)
+      abi.encode(poolManager, admin, quoteSigner, egRecipient)
     );
 
     vm.broadcast();

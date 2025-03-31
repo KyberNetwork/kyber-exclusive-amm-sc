@@ -27,8 +27,8 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     ICLPoolManager _poolManager,
     address initialAdmin,
     address initialQuoteSigner,
-    address initialEGRecipient
-  ) BaseCLHook(_poolManager) BaseKEMHook(initialAdmin, initialQuoteSigner, initialEGRecipient) {}
+    address initialEgRecipient
+  ) BaseCLHook(_poolManager) BaseKEMHook(initialAdmin, initialQuoteSigner, initialEgRecipient) {}
 
   /// @inheritdoc IKEMHook
   function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts)

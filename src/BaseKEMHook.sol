@@ -105,6 +105,23 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
     emit UpdateEgRecipient(newRecipient);
   }
 
+  /// @notice Revoke the DEFAULT_ADMIN_ROLE from the old admin
+  /// @notice Mimic the behaviour of `transferOwnership` in `Ownable` contract
+  function _grantRole(bytes32 role, address account) internal override returns (bool) {
+    if (role == DEFAULT_ADMIN_ROLE) {
+      super._revokeRole(DEFAULT_ADMIN_ROLE, _msgSender());
+    }
+
+    return super._grantRole(role, account);
+  }
+
+  /// @notice Disable the ability to revoke the DEFAULT_ADMIN_ROLE
+  function _revokeRole(bytes32 role, address account) internal override returns (bool) {
+    require(role != DEFAULT_ADMIN_ROLE, RevokeAdminRoleDisabled());
+
+    return super._revokeRole(role, account);
+  }
+
   function _transfer(IERC20 token, uint256 amount, address payable recipient)
     internal
     returns (uint256)

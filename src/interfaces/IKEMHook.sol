@@ -14,6 +14,9 @@ interface IKEMHook is IAccessControl {
   /// @notice Thrown when the new address to be updated is the zero address
   error InvalidAddress();
 
+  /// @notice Thrown when trying to revoke the DEFAULT_ADMIN_ROLE
+  error RevokeAdminRoleDisabled();
+
   /// @notice Thrown when trying to swap in exact output mode
   error ExactOutputDisabled();
 

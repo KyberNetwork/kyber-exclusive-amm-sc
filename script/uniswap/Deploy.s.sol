@@ -10,10 +10,10 @@ contract DeployScript is BaseUniswapScript {
     // Follow the instructions in
     // https://github.com/KyberNetwork/ks-exclusive-liquidity-sc/?tab=readme-ov-file#deploy
     // to find the suitable salt
-    bytes32 salt = 0x000000000000000000000000000000000000000034b3d923ecc20000000007e1;
+    bytes32 salt = 0x445a84c05d0edc98679a0dc3f9ecc0c33eab94f5b5448daa9b4e400000ca69ca;
     bytes memory bytecode = abi.encodePacked(
       type(UniswapV4KEMHook).creationCode,
-      abi.encode(poolManager, owner, operators, quoteSigner, egRecipient)
+      abi.encode(poolManager, admin, quoteSigner, egRecipient)
     );
 
     vm.broadcast();

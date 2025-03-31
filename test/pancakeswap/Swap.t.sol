@@ -55,9 +55,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     int256 egAmount =
       maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0);
     if (egAmount > 0) {
-      vm.expectEmit(true, true, true, true, hook);
-
-      emit IKEMHook.TakeEGToken(
+      vm.expectEmit(true, true, true, true, address(hook));
+      emit IKEMHook.AbsorbEgToken(
         PoolId.unwrap(keyWithHook.toId()),
         Currency.unwrap(currencyOut),
         amountOutWithoutHook - maxAmountOut
@@ -75,7 +74,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     if (egAmount > 0) {
       assertEq(amountOutWithHook, maxAmountOut);
       assertEq(
-        vault.balanceOf(hook, currencyOut), uint256(int256(amountOutWithoutHook - maxAmountOut))
+        vault.balanceOf(address(hook), currencyOut),
+        uint256(int256(amountOutWithoutHook - maxAmountOut))
       );
     } else {
       assertEq(amountOutWithHook, amountOutWithoutHook);
@@ -83,21 +83,21 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
 
     address[] memory tokens = newAddressesLength1(Currency.unwrap(currencyOut));
     uint256[] memory amounts = newUint256sLength1(uint256(egAmount));
-    vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
     vm.prank(operator);
-    IKEMHook(hook).claimEGTokens(tokens, newUint256sLength1(0));
+    hook.claimEgTokens(tokens, newUint256sLength1(0));
   }
 
-  /// forge-config: default.fuzz.runs = 5
+  /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_swap_exactInput_not_whitelistSender_shouldFail(
-    uint256 addressIndex,
+    uint256 actorIndex,
     int256 amountSpecified,
     bool zeroForOne,
     uint160 sqrtPriceLimitX96
   ) public {
     CLPoolManagerRouter router =
-      CLPoolManagerRouter(actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)]);
+      CLPoolManagerRouter(actors[bound(actorIndex, 0, actors.length - 1)]);
     vm.assume(router != swapRouter);
     deployCodeTo('CLPoolManagerRouter.sol', abi.encode(vault, poolManager), address(router));
 
@@ -115,7 +115,9 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         ICLHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IKEMHook.NotWhitelisted.selector, address(router)),
+        abi.encodeWithSelector(
+          IAccessControl.AccessControlUnauthorizedAccount.selector, router, SWAP_ROLE
+        ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
@@ -224,7 +226,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
   }
 
-  /// forge-config: default.fuzz.runs = 5
+  /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_swap_exactInput_with_invalidSignature_shouldFail(
     uint256 privKey,
     int256 amountSpecified,

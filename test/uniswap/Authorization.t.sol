@@ -4,83 +4,120 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 contract UniswapHookAuthorizationTest is UniswapHookBaseTest {
-  /// forge-config: default.fuzz.runs = 5
-  function test_uniswap_updateWhitelist_succeed(address sender, bool grantOrRevoke) public {
-    vm.prank(owner);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.WhitelistSender(sender, grantOrRevoke);
-    IKEMHook(hook).whitelistSenders(newAddressesLength1(sender), grantOrRevoke);
-    assertEq(IKEMHook(hook).whitelisted(sender), grantOrRevoke);
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_grantRole_succeed(address account, uint256 roleIndex) public {
+    bytes32 role = roles[bound(roleIndex, 0, roles.length - 1)];
+
+    vm.prank(admin);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IAccessControl.RoleGranted(role, account, admin);
+    hook.grantRole(role, account);
   }
 
-  /// forge-config: default.fuzz.runs = 5
-  function test_uniswap_updateWhitelist_notOwner_shouldFail(
-    uint256 addressIndex,
-    address sender,
-    bool grantOrRevoke
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_grantNewAdminRole_should_revokeOldAdminRole(address newAdmin) public {
+    vm.assume(newAdmin != admin);
+
+    vm.prank(admin);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IAccessControl.RoleRevoked(DEFAULT_ADMIN_ROLE, admin, admin);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IAccessControl.RoleGranted(DEFAULT_ADMIN_ROLE, newAdmin, admin);
+    hook.grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_grantRole_withoutAdminRole_shouldFail(
+    uint256 actorIndex,
+    address account,
+    uint256 roleIndex
   ) public {
-    address actor = actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)];
-    vm.assume(actor != owner);
+    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
+    bytes32 role = roles[bound(roleIndex, 0, roles.length - 1)];
+    vm.assume(actor != admin);
+
     vm.prank(actor);
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    IKEMHook(hook).whitelistSenders(newAddressesLength1(sender), grantOrRevoke);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, DEFAULT_ADMIN_ROLE
+      )
+    );
+    hook.grantRole(role, account);
   }
 
-  /// forge-config: default.fuzz.runs = 5
+  function test_uniswap_revokeAdminRole_shouldFail() public {
+    vm.prank(admin);
+    vm.expectRevert(IKEMHook.RevokeAdminRoleDisabled.selector);
+    hook.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
   function test_uniswap_updateQuoteSigner_succeed(address newSigner) public {
     vm.assume(newSigner != address(0));
-    vm.prank(owner);
-    vm.expectEmit(true, true, true, true, hook);
+
+    vm.prank(admin);
+    vm.expectEmit(true, true, true, true, address(hook));
     emit IKEMHook.UpdateQuoteSigner(newSigner);
-    IKEMHook(hook).updateQuoteSigner(newSigner);
-    assertEq(IKEMHook(hook).quoteSigner(), newSigner);
+    hook.updateQuoteSigner(newSigner);
+    assertEq(hook.quoteSigner(), newSigner);
   }
 
-  /// forge-config: default.fuzz.runs = 5
-  function test_uniswap_updateQuoteSigner_notOwner_shouldFail(
-    uint256 addressIndex,
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_updateQuoteSigner_withoutAdminRole_shouldFail(
+    uint256 actorIndex,
     address newSigner
   ) public {
     vm.assume(newSigner != address(0));
-    address actor = actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)];
-    vm.assume(actor != owner);
+    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
+    vm.assume(actor != admin);
+
     vm.prank(actor);
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    IKEMHook(hook).updateQuoteSigner(newSigner);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, DEFAULT_ADMIN_ROLE
+      )
+    );
+    hook.updateQuoteSigner(newSigner);
   }
 
-  /// forge-config: default.fuzz.runs = 5
-  function test_uniswap_updateEGRecipient_succeed(address recipient) public {
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_updateEgRecipient_succeed(address recipient) public {
     vm.assume(recipient != address(0));
-    vm.prank(owner);
-    vm.expectEmit(true, true, true, true, hook);
-    emit IKEMHook.UpdateEGRecipient(recipient);
-    IKEMHook(hook).updateEGRecipient(recipient);
-    assertEq(IKEMHook(hook).egRecipient(), recipient);
+
+    vm.prank(admin);
+    vm.expectEmit(true, true, true, true, address(hook));
+    emit IKEMHook.UpdateEgRecipient(recipient);
+    hook.updateEgRecipient(recipient);
+    assertEq(hook.egRecipient(), recipient);
   }
 
-  /// forge-config: default.fuzz.runs = 5
-  function test_uniswap_updateEGRecipient_notOwner_shouldFail(
-    uint256 addressIndex,
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_updateEgRecipient_withoutAdminRole_shouldFail(
+    uint256 actorIndex,
     address recipient
   ) public {
     vm.assume(recipient != address(0));
-    address actor = actorAddresses[bound(addressIndex, 0, actorAddresses.length - 1)];
-    vm.assume(actor != owner);
+    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
+    vm.assume(actor != admin);
+
     vm.prank(actor);
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    IKEMHook(hook).updateEGRecipient(recipient);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, DEFAULT_ADMIN_ROLE
+      )
+    );
+    hook.updateEgRecipient(recipient);
   }
 
   function test_uniswap_updateQuoteSigner_with_zeroAddress() public {
-    vm.prank(owner);
+    vm.prank(admin);
     vm.expectRevert(IKEMHook.InvalidAddress.selector);
-    IKEMHook(hook).updateQuoteSigner(address(0));
+    hook.updateQuoteSigner(address(0));
   }
 
-  function test_uniswap_updateEGRecipient_with_zeroAddress() public {
-    vm.prank(owner);
+  function test_uniswap_updateEgRecipient_with_zeroAddress() public {
+    vm.prank(admin);
     vm.expectRevert(IKEMHook.InvalidAddress.selector);
-    IKEMHook(hook).updateEGRecipient(address(0));
+    hook.updateEgRecipient(address(0));
   }
 }

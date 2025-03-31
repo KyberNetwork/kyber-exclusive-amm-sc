@@ -23,6 +23,6 @@ contract BasePancakeSwapScript is BaseScript {
 
     poolManager = ICLPoolManager(_readAddress('pancakeswap-infinity-cl-pool-manager'));
     positionManager = ICLPositionManager(_readAddress('pancakeswap-infinity-cl-position-manager'));
-    hook = IHooks(_readAddress('pancakeswap-infinity-kem-hook'));
+    hook = IHooks(_readAddressOr('pancakeswap-infinity-kem-hook', address(0)));
   }
 }

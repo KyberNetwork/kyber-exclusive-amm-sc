@@ -25,10 +25,10 @@ import {SignatureChecker} from
 contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
   constructor(
     IPoolManager _poolManager,
-    address initialOwner,
+    address initialAdmin,
     address initialQuoteSigner,
-    address initialEGRecipient
-  ) BaseHook(_poolManager) BaseKEMHook(initialOwner, initialQuoteSigner, initialEGRecipient) {}
+    address initialEgRecipient
+  ) BaseHook(_poolManager) BaseKEMHook(initialAdmin, initialQuoteSigner, initialEgRecipient) {}
 
   /// @inheritdoc IKEMHook
   function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts)
