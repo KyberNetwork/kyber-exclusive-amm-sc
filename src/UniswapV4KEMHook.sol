@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {BaseKEMHook} from '../BaseKEMHook.sol';
-import {IKEMHook} from '../interfaces/IKEMHook.sol';
-import {HookDataDecoder} from '../libraries/HookDataDecoder.sol';
+import {BaseKEMHook} from './base/BaseKEMHook.sol';
+import {IKEMHook} from './interfaces/IKEMHook.sol';
+import {HookDataDecoder} from './libraries/HookDataDecoder.sol';
 
+import {IHooks} from 'uniswap/v4-core/src/interfaces/IHooks.sol';
 import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
 import {IUnlockCallback} from 'uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol';
 import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
-import {BaseHook} from 'uniswap/v4-periphery/src/utils/BaseHook.sol';
 
 import {BalanceDelta, toBalanceDelta} from 'uniswap/v4-core/src/types/BalanceDelta.sol';
 import {
@@ -22,7 +22,13 @@ import {SignatureChecker} from
   'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 /// @title UniswapV4KEMHook
-contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
+contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
+  /// @notice Thrown when the caller is not PoolManager
+  error NotPoolManager();
+
+  /// @notice The address of the PoolManager contract
+  IPoolManager public immutable poolManager;
+
   constructor(
     IPoolManager _poolManager,
     address initialOwner,
@@ -31,7 +37,6 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     address initialQuoteSigner,
     address initialEgRecipient
   )
-    BaseHook(_poolManager)
     BaseKEMHook(
       initialOwner,
       initialClaimableAccounts,
@@ -39,7 +44,16 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
       initialQuoteSigner,
       initialEgRecipient
     )
-  {}
+  {
+    poolManager = _poolManager;
+    Hooks.validateHookPermissions(IHooks(address(this)), getHookPermissions());
+  }
+
+  /// @notice Only allow calls from the PoolManager contract
+  modifier onlyPoolManager() {
+    if (msg.sender != address(poolManager)) revert NotPoolManager();
+    _;
+  }
 
   /// @inheritdoc IKEMHook
   function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts) public {
@@ -66,7 +80,7 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     emit ClaimEgTokens(egRecipient, tokens, amounts);
   }
 
-  function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+  function getHookPermissions() public pure returns (Hooks.Permissions memory) {
     return Hooks.Permissions({
       beforeInitialize: false,
       afterInitialize: false,
@@ -85,12 +99,12 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     });
   }
 
-  function _beforeSwap(
+  function beforeSwap(
     address sender,
     PoolKey calldata key,
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
-  ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
+  ) external view onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
     require(whitelisted[sender], NonWhitelistedAccount(sender));
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
@@ -123,13 +137,13 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
   }
 
-  function _afterSwap(
+  function afterSwap(
     address,
     PoolKey calldata key,
     IPoolManager.SwapParams calldata params,
     BalanceDelta delta,
     bytes calldata hookData
-  ) internal override returns (bytes4, int128) {
+  ) external onlyPoolManager returns (bytes4, int128) {
     (int256 maxExchangeRate, int256 exchangeRateDenom) =
       HookDataDecoder.decodeExchangeRate(hookData);
 

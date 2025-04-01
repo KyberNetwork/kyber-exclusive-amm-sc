@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {BaseKEMHook} from '../BaseKEMHook.sol';
+import {BaseKEMHook} from './base/BaseKEMHook.sol';
 
-import {IKEMHook} from '../interfaces/IKEMHook.sol';
-import {HookDataDecoder} from '../libraries/HookDataDecoder.sol';
-import {BaseCLHook} from './BaseCLHook.sol';
+import {IKEMHook} from './interfaces/IKEMHook.sol';
+import {HookDataDecoder} from './libraries/HookDataDecoder.sol';
 
+import {IVault} from 'pancakeswap/infinity-core/src/interfaces/IVault.sol';
 import {ICLPoolManager} from 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol';
 
 import {BalanceDelta} from 'pancakeswap/infinity-core/src/types/BalanceDelta.sol';
@@ -18,11 +18,29 @@ import {Currency} from 'pancakeswap/infinity-core/src/types/Currency.sol';
 import {PoolId} from 'pancakeswap/infinity-core/src/types/PoolId.sol';
 import {PoolKey} from 'pancakeswap/infinity-core/src/types/PoolKey.sol';
 
+import {
+  HOOKS_AFTER_SWAP_OFFSET,
+  HOOKS_AFTER_SWAP_RETURNS_DELTA_OFFSET,
+  HOOKS_BEFORE_SWAP_OFFSET
+} from 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
+
 import {SignatureChecker} from
   'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 /// @title PancakeSwapInfinityKEMHook
-contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
+contract PancakeSwapInfinityKEMHook is BaseKEMHook {
+  /// @notice Thrown when the caller is not PoolManager
+  error NotPoolManager();
+
+  /// @notice Thrown when the caller is not Vault
+  error NotVault();
+
+  /// @notice The address of the PoolManager contract
+  ICLPoolManager public immutable poolManager;
+
+  /// @notice The address of the Vault contract
+  IVault public immutable vault;
+
   constructor(
     ICLPoolManager _poolManager,
     address initialOwner,
@@ -31,7 +49,6 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     address initialQuoteSigner,
     address initialEgRecipient
   )
-    BaseCLHook(_poolManager)
     BaseKEMHook(
       initialOwner,
       initialClaimableAccounts,
@@ -39,7 +56,22 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
       initialQuoteSigner,
       initialEgRecipient
     )
-  {}
+  {
+    poolManager = _poolManager;
+    vault = _poolManager.vault();
+  }
+
+  /// @notice Only allow calls from the PoolManager contract
+  modifier onlyPoolManager() {
+    if (msg.sender != address(poolManager)) revert NotPoolManager();
+    _;
+  }
+
+  /// @notice Only allow calls from the Vault contract
+  modifier onlyVault() {
+    if (msg.sender != address(vault)) revert NotVault();
+    _;
+  }
 
   /// @inheritdoc IKEMHook
   function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts) public {
@@ -49,7 +81,7 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     vault.lock(abi.encode(tokens, amounts));
   }
 
-  function lockAcquired(bytes calldata data) public override vaultOnly returns (bytes memory) {
+  function lockAcquired(bytes calldata data) public onlyVault returns (bytes memory) {
     (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
 
     for (uint256 i = 0; i < tokens.length; i++) {
@@ -66,33 +98,19 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     emit ClaimEgTokens(egRecipient, tokens, amounts);
   }
 
-  function getHooksRegistrationBitmap() external pure override returns (uint16) {
-    return _hooksRegistrationBitmapFrom(
-      Permissions({
-        beforeInitialize: false,
-        afterInitialize: false,
-        beforeAddLiquidity: false,
-        afterAddLiquidity: false,
-        beforeRemoveLiquidity: false,
-        afterRemoveLiquidity: false,
-        beforeSwap: true,
-        afterSwap: true,
-        beforeDonate: false,
-        afterDonate: false,
-        beforeSwapReturnDelta: false,
-        afterSwapReturnDelta: true,
-        afterAddLiquidityReturnDelta: false,
-        afterRemoveLiquidityReturnDelta: false
-      })
+  function getHooksRegistrationBitmap() external pure returns (uint16) {
+    return uint16(
+      (1 << HOOKS_BEFORE_SWAP_OFFSET) | (1 << HOOKS_AFTER_SWAP_OFFSET)
+        | (1 << HOOKS_AFTER_SWAP_RETURNS_DELTA_OFFSET)
     );
   }
 
-  function _beforeSwap(
+  function beforeSwap(
     address sender,
     PoolKey calldata key,
     ICLPoolManager.SwapParams calldata params,
     bytes calldata hookData
-  ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
+  ) external view onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
     require(whitelisted[sender], NonWhitelistedAccount(sender));
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
@@ -125,13 +143,13 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
   }
 
-  function _afterSwap(
+  function afterSwap(
     address,
     PoolKey calldata key,
     ICLPoolManager.SwapParams calldata params,
     BalanceDelta delta,
     bytes calldata hookData
-  ) internal override returns (bytes4, int128) {
+  ) external onlyPoolManager returns (bytes4, int128) {
     (int256 maxExchangeRate, int256 exchangeRateDenom) =
       HookDataDecoder.decodeExchangeRate(hookData);
 

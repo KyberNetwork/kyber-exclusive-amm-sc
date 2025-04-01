@@ -96,13 +96,13 @@ contract PancakeSwapHookAuthorizationTest is PancakeSwapHookBaseTest {
 
   function test_pancakeswap_updateQuoteSigner_with_zeroAddress() public {
     vm.prank(owner);
-    vm.expectRevert(IKEMHook.InvalidAddress.selector);
+    vm.expectRevert(ICommon.InvalidAddress.selector);
     hook.updateQuoteSigner(address(0));
   }
 
   function test_pancakeswap_updateEgRecipient_with_zeroAddress() public {
     vm.prank(owner);
-    vm.expectRevert(IKEMHook.InvalidAddress.selector);
+    vm.expectRevert(ICommon.InvalidAddress.selector);
     hook.updateEgRecipient(address(0));
   }
 }
