@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IKEMHook} from './interfaces/IKEMHook.sol';
 
-import {AccessControl} from 'openzeppelin-contracts/contracts/access/AccessControl.sol';
+import {Ownable} from 'openzeppelin-contracts/contracts/access/Ownable.sol';
 import {IERC1155} from 'openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol';
 import {IERC20, SafeERC20} from 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
 import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
@@ -13,12 +13,12 @@ import {Address} from 'openzeppelin-contracts/contracts/utils/Address.sol';
  * @title BaseKEMHook
  * @notice Abstract contract containing common implementation for KEMHook contracts
  */
-abstract contract BaseKEMHook is IKEMHook, AccessControl {
+abstract contract BaseKEMHook is IKEMHook, Ownable {
   /// @inheritdoc IKEMHook
-  bytes32 public constant CLAIM_ROLE = keccak256('CLAIM_ROLE');
+  mapping(address account => bool status) public claimable;
 
   /// @inheritdoc IKEMHook
-  bytes32 public constant SWAP_ROLE = keccak256('SWAP_ROLE');
+  mapping(address account => bool status) public whitelisted;
 
   /// @inheritdoc IKEMHook
   address public quoteSigner;
@@ -26,19 +26,36 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
   /// @inheritdoc IKEMHook
   address public egRecipient;
 
-  constructor(address initialAdmin, address initialQuoteSigner, address initialEgRecipient) {
-    _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
+  constructor(
+    address initialOwner,
+    address[] memory initialClaimableAccounts,
+    address[] memory initialWhitelistedAccounts,
+    address initialQuoteSigner,
+    address initialEgRecipient
+  ) Ownable(initialOwner) {
+    _updateClaimable(initialClaimableAccounts, true);
+    _updateWhitelisted(initialWhitelistedAccounts, true);
     _updateQuoteSigner(initialQuoteSigner);
     _updateEgRecipient(initialEgRecipient);
   }
 
   /// @inheritdoc IKEMHook
-  function updateQuoteSigner(address newSigner) public onlyRole(DEFAULT_ADMIN_ROLE) {
+  function updateClaimable(address[] calldata accounts, bool newStatus) public onlyOwner {
+    _updateClaimable(accounts, newStatus);
+  }
+
+  /// @inheritdoc IKEMHook
+  function updateWhitelisted(address[] calldata accounts, bool newStatus) public onlyOwner {
+    _updateWhitelisted(accounts, newStatus);
+  }
+
+  /// @inheritdoc IKEMHook
+  function updateQuoteSigner(address newSigner) public onlyOwner {
     _updateQuoteSigner(newSigner);
   }
 
   /// @inheritdoc IKEMHook
-  function updateEgRecipient(address newRecipient) public onlyRole(DEFAULT_ADMIN_ROLE) {
+  function updateEgRecipient(address newRecipient) public onlyOwner {
     _updateEgRecipient(newRecipient);
   }
 
@@ -47,7 +64,7 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
     IERC20[] calldata tokens,
     uint256[] memory amounts,
     address payable recipient
-  ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+  ) external onlyOwner {
     require(recipient != address(0), InvalidAddress());
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
@@ -61,7 +78,7 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
   /// @inheritdoc IKEMHook
   function rescueERC721s(IERC721[] calldata tokens, uint256[] memory tokenIds, address recipient)
     external
-    onlyRole(DEFAULT_ADMIN_ROLE)
+    onlyOwner
   {
     require(recipient != address(0), InvalidAddress());
     require(tokens.length == tokenIds.length, MismatchedArrayLengths());
@@ -79,7 +96,7 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
     uint256[] memory tokenIds,
     uint256[] memory amounts,
     address recipient
-  ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+  ) external onlyOwner {
     require(recipient != address(0), InvalidAddress());
     require(tokens.length == tokenIds.length, MismatchedArrayLengths());
     require(tokens.length == amounts.length, MismatchedArrayLengths());
@@ -89,6 +106,22 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
     }
 
     emit RescueERC1155s(tokens, tokenIds, amounts, recipient);
+  }
+
+  function _updateClaimable(address[] memory accounts, bool newStatus) internal {
+    for (uint256 i = 0; i < accounts.length; i++) {
+      claimable[accounts[i]] = newStatus;
+
+      emit UpdateClaimable(accounts[i], newStatus);
+    }
+  }
+
+  function _updateWhitelisted(address[] memory accounts, bool newStatus) internal {
+    for (uint256 i = 0; i < accounts.length; i++) {
+      whitelisted[accounts[i]] = newStatus;
+
+      emit UpdateWhitelisted(accounts[i], newStatus);
+    }
   }
 
   function _updateQuoteSigner(address newSigner) internal {
@@ -103,23 +136,6 @@ abstract contract BaseKEMHook is IKEMHook, AccessControl {
     egRecipient = newRecipient;
 
     emit UpdateEgRecipient(newRecipient);
-  }
-
-  /// @notice Revoke the DEFAULT_ADMIN_ROLE from the old admin
-  /// @notice Mimic the behaviour of `transferOwnership` in `Ownable` contract
-  function _grantRole(bytes32 role, address account) internal override returns (bool) {
-    if (role == DEFAULT_ADMIN_ROLE) {
-      super._revokeRole(DEFAULT_ADMIN_ROLE, _msgSender());
-    }
-
-    return super._grantRole(role, account);
-  }
-
-  /// @notice Disable the ability to revoke the DEFAULT_ADMIN_ROLE
-  function _revokeRole(bytes32 role, address account) internal override returns (bool) {
-    require(role != DEFAULT_ADMIN_ROLE, RevokeAdminRoleDisabled());
-
-    return super._revokeRole(role, account);
   }
 
   function _transfer(IERC20 token, uint256 amount, address payable recipient)

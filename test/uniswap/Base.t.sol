@@ -30,16 +30,20 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
       )
     );
     deployCodeTo(
-      'UniswapV4KEMHook.sol', abi.encode(manager, admin, quoteSigner, egRecipient), address(hook)
+      'UniswapV4KEMHook.sol',
+      abi.encode(
+        manager,
+        owner,
+        newAddressesLength1(operator),
+        newAddressesLength1(address(swapRouter)),
+        quoteSigner,
+        egRecipient
+      ),
+      address(hook)
     );
 
     (keyWithHook,) =
       initPoolAndAddLiquidity(currency0, currency1, IHooks(address(hook)), 3000, SQRT_PRICE_1_1);
-
-    vm.startPrank(admin);
-    hook.grantRole(CLAIM_ROLE, operator);
-    hook.grantRole(SWAP_ROLE, address(swapRouter));
-    vm.stopPrank();
   }
 
   function getMinPriceLimit() internal pure override returns (uint160) {

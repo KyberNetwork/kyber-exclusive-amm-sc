@@ -32,7 +32,16 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture {
     initializeTokens();
     (vault, poolManager) = createFreshManager();
     swapRouter = new CLPoolManagerRouter(vault, poolManager);
-    hook = IKEMHook(new PancakeSwapInfinityKEMHook(poolManager, admin, quoteSigner, egRecipient));
+    hook = IKEMHook(
+      new PancakeSwapInfinityKEMHook(
+        poolManager,
+        owner,
+        newAddressesLength1(operator),
+        newAddressesLength1(address(swapRouter)),
+        quoteSigner,
+        egRecipient
+      )
+    );
 
     MockERC20 token0 = MockERC20(Currency.unwrap(currency0));
     MockERC20 token1 = MockERC20(Currency.unwrap(currency1));
@@ -64,11 +73,6 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture {
 
     poolManager.initialize(keyWithoutHook, getSqrtPrice1_1());
     poolManager.initialize(keyWithHook, getSqrtPrice1_1());
-
-    vm.startPrank(admin);
-    hook.grantRole(CLAIM_ROLE, operator);
-    hook.grantRole(SWAP_ROLE, address(swapRouter));
-    vm.stopPrank();
   }
 
   function getMinPriceLimit() internal pure override returns (uint160) {

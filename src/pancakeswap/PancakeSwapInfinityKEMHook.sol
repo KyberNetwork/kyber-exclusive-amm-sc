@@ -25,16 +25,25 @@ import {SignatureChecker} from
 contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
   constructor(
     ICLPoolManager _poolManager,
-    address initialAdmin,
+    address initialOwner,
+    address[] memory initialClaimableAccounts,
+    address[] memory initialWhitelistedAccounts,
     address initialQuoteSigner,
     address initialEgRecipient
-  ) BaseCLHook(_poolManager) BaseKEMHook(initialAdmin, initialQuoteSigner, initialEgRecipient) {}
+  )
+    BaseCLHook(_poolManager)
+    BaseKEMHook(
+      initialOwner,
+      initialClaimableAccounts,
+      initialWhitelistedAccounts,
+      initialQuoteSigner,
+      initialEgRecipient
+    )
+  {}
 
   /// @inheritdoc IKEMHook
-  function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts)
-    public
-    onlyRole(CLAIM_ROLE)
-  {
+  function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts) public {
+    require(claimable[msg.sender], NonClaimableAccount(msg.sender));
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
     vault.lock(abi.encode(tokens, amounts));
@@ -84,7 +93,7 @@ contract PancakeSwapInfinityKEMHook is BaseCLHook, BaseKEMHook {
     ICLPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-    _checkRole(SWAP_ROLE, sender);
+    require(whitelisted[sender], NonWhitelistedAccount(sender));
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (

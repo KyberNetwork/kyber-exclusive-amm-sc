@@ -115,9 +115,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         ICLHooks.beforeSwap.selector,
-        abi.encodeWithSelector(
-          IAccessControl.AccessControlUnauthorizedAccount.selector, router, SWAP_ROLE
-        ),
+        abi.encodeWithSelector(IKEMHook.NonWhitelistedAccount.selector, router),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );

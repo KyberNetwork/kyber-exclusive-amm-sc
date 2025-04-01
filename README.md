@@ -37,7 +37,7 @@ $ forge fmt
 First of all, set the necessary configurations in the [config](./script/config) folder:
 
 - Address of the pool manager: [Uniswap v4](./script/config/uniswap-v4-pool-manager.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-cl-pool-manager.json)
-- Address of the admin: [admin.json](./script/config/admin.json)
+- Address of the owner: [owner.json](./script/config/owner.json)
 - Address of the quote signer: [quote-signer.json](./script/config/quote-signer.json)
 - Address of the equilibrium-gain recipient: [eg-recipient.json](./script/config/eg-recipient.json)
 
