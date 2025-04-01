@@ -56,7 +56,12 @@ abstract contract Rescuable is IRescuable {
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
     for (uint256 i = 0; i < tokens.length; i++) {
-      tokens[i].safeTransferFrom(address(this), recipient, tokenIds[i], amounts[i], '');
+      if (amounts[i] == 0) {
+        amounts[i] = tokens[i].balanceOf(address(this), tokenIds[i]);
+      }
+      if (amounts[i] > 0) {
+        tokens[i].safeTransferFrom(address(this), recipient, tokenIds[i], amounts[i], '');
+      }
     }
 
     emit RescueERC1155s(tokens, tokenIds, amounts, recipient);
@@ -70,12 +75,16 @@ abstract contract Rescuable is IRescuable {
       if (amount == 0) {
         amount = address(this).balance;
       }
-      Address.sendValue(recipient, amount);
+      if (amount > 0) {
+        Address.sendValue(recipient, amount);
+      }
     } else {
       if (amount == 0) {
         amount = token.balanceOf(address(this));
       }
-      SafeERC20.safeTransfer(token, recipient, amount);
+      if (amount > 0) {
+        SafeERC20.safeTransfer(token, recipient, amount);
+      }
     }
 
     return amount;
