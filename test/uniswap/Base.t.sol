@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import 'src/BaseKEMHook.sol';
-import 'src/uniswap/UniswapV4KEMHook.sol';
+
+import 'src/UniswapV4KEMHook.sol';
+import 'src/base/BaseKEMHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'uniswap/v4-core/src/libraries/CustomRevert.sol';

@@ -13,7 +13,7 @@ import 'uniswap/v4-periphery/src/libraries/Actions.sol';
 
 import 'permit2/src/interfaces/IAllowanceTransfer.sol';
 
-import 'src/uniswap/UniswapV4KEMHook.sol';
+import 'src/UniswapV4KEMHook.sol';
 
 contract BaseUniswapScript is BaseScript {
   using Address for address;

@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import 'src/BaseKEMHook.sol';
-import 'src/pancakeswap/PancakeSwapInfinityKEMHook.sol';
+
+import 'src/PancakeSwapInfinityKEMHook.sol';
+import 'src/base/BaseKEMHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'pancakeswap/infinity-core/src/libraries/CustomRevert.sol';
