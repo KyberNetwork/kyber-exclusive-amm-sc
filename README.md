@@ -38,6 +38,8 @@ First of all, set the necessary configurations in the [config](./script/config) 
 
 - Address of the pool manager: [Uniswap v4](./script/config/uniswap-v4-pool-manager.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-cl-pool-manager.json)
 - Address of the owner: [owner.json](./script/config/owner.json)
+- Addresses of the claimalbe accounts: [claimable-accounts.json](./script/config/claimable-accounts.json)
+- Addresses of the whitelisted accounts: [whitelisted-accounts.json](./script/config/whitelisted-accounts.json)
 - Address of the quote signer: [quote-signer.json](./script/config/quote-signer.json)
 - Address of the equilibrium-gain recipient: [eg-recipient.json](./script/config/eg-recipient.json)
 
