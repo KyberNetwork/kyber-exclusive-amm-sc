@@ -114,9 +114,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(
-          IAccessControl.AccessControlUnauthorizedAccount.selector, router, SWAP_ROLE
-        ),
+        abi.encodeWithSelector(IKEMHook.NonWhitelistedAccount.selector, router),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );

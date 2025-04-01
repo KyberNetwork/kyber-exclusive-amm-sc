@@ -2,34 +2,27 @@
 pragma solidity ^0.8.0;
 
 import 'forge-std/Test.sol';
-import 'openzeppelin-contracts/contracts/access/AccessControl.sol';
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 import 'src/interfaces/IKEMHook.sol';
 
 abstract contract BaseTest is Test {
-  address admin;
+  address owner;
   address operator;
   address quoteSigner;
   uint256 quoteSignerKey;
   address egRecipient;
 
   address[] actors;
-  bytes32[] roles;
 
   IKEMHook hook;
 
-  bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
-  bytes32 constant CLAIM_ROLE = keccak256('CLAIM_ROLE');
-  bytes32 constant SWAP_ROLE = keccak256('SWAP_ROLE');
-
   function setUp() public virtual {
-    admin = makeAddr('admin');
+    owner = makeAddr('owner');
     operator = makeAddr('operator');
     (quoteSigner, quoteSignerKey) = makeAddrAndKey('quoteSigner');
     egRecipient = makeAddr('egRecipient');
-    actors = [admin, operator, quoteSigner, egRecipient, makeAddr('anyone')];
-    roles = [CLAIM_ROLE, SWAP_ROLE];
+    actors = [owner, operator, quoteSigner, egRecipient, makeAddr('anyone')];
 
     vm.deal(address(this), type(uint256).max);
   }

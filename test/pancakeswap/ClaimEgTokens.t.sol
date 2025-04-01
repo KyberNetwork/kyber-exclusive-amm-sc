@@ -92,11 +92,7 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
     vm.prank(actor);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IAccessControl.AccessControlUnauthorizedAccount.selector, actor, CLAIM_ROLE
-      )
-    );
+    vm.expectRevert(abi.encodeWithSelector(IKEMHook.NonClaimableAccount.selector, actor));
     hook.claimEgTokens(tokens, amounts);
   }
 

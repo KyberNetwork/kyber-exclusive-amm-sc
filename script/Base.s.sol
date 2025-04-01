@@ -22,7 +22,9 @@ contract BaseScript is Script {
   string path;
   string chainId;
 
-  address admin;
+  address owner;
+  address[] claimableAccounts;
+  address[] whitelistedAccounts;
   address quoteSigner;
   address egRecipient;
 
@@ -35,7 +37,9 @@ contract BaseScript is Script {
     }
     chainId = vm.toString(_chainId);
 
-    admin = _readAddress('admin');
+    owner = _readAddress('owner');
+    claimableAccounts = _readAddressArray('claimable-accounts');
+    whitelistedAccounts = _readAddressArray('whitelisted-accounts');
     quoteSigner = _readAddress('quote-signer');
     egRecipient = _readAddress('eg-recipient');
   }

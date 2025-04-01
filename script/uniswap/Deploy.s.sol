@@ -12,7 +12,10 @@ contract DeployScript is BaseUniswapScript {
     // to find the suitable salt
     bytes32 salt = 0x445a84c05d0edc98679a0dc3f9ecc0c33eab94f5b5448daa9b4e400000ca69ca;
     bytes memory bytecode = abi.encodePacked(
-      type(UniswapV4KEMHook).creationCode, abi.encode(poolManager, admin, quoteSigner, egRecipient)
+      type(UniswapV4KEMHook).creationCode,
+      abi.encode(
+        poolManager, owner, claimableAccounts, whitelistedAccounts, quoteSigner, egRecipient
+      )
     );
 
     vm.broadcast();

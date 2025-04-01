@@ -25,16 +25,25 @@ import {SignatureChecker} from
 contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
   constructor(
     IPoolManager _poolManager,
-    address initialAdmin,
+    address initialOwner,
+    address[] memory initialClaimableAccounts,
+    address[] memory initialWhitelistedAccounts,
     address initialQuoteSigner,
     address initialEgRecipient
-  ) BaseHook(_poolManager) BaseKEMHook(initialAdmin, initialQuoteSigner, initialEgRecipient) {}
+  )
+    BaseHook(_poolManager)
+    BaseKEMHook(
+      initialOwner,
+      initialClaimableAccounts,
+      initialWhitelistedAccounts,
+      initialQuoteSigner,
+      initialEgRecipient
+    )
+  {}
 
   /// @inheritdoc IKEMHook
-  function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts)
-    public
-    onlyRole(CLAIM_ROLE)
-  {
+  function claimEgTokens(address[] calldata tokens, uint256[] calldata amounts) public {
+    require(claimable[msg.sender], NonClaimableAccount(msg.sender));
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
     poolManager.unlock(abi.encode(tokens, amounts));
@@ -82,7 +91,7 @@ contract UniswapV4KEMHook is BaseHook, BaseKEMHook, IUnlockCallback {
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-    _checkRole(SWAP_ROLE, sender);
+    require(whitelisted[sender], NonWhitelistedAccount(sender));
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (
