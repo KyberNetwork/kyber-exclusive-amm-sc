@@ -6,16 +6,30 @@ import './Base.t.sol';
 contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   function test_pancakeswap_exactInput_succeed(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
 
     uint256 egAmount = swapWithBothPools(config.swapConfig, false);
 
     Currency currencyOut = config.swapConfig.zeroForOne ? currency1 : currency0;
+    assertEq(vault.balanceOf(address(hook), currencyOut), egAmount);
+
     tokens = newAddressesLength1(Currency.unwrap(currencyOut));
     vm.expectEmit(true, true, true, true, address(hook));
     emit IKEMHook.ClaimEgTokens(egRecipient, tokens, newUint256sLength1(uint256(egAmount)));
     vm.prank(operator);
     hook.claimEgTokens(tokens, newUint256sLength1(0));
+  }
+
+  function test_pancakeswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
+    initPools(config.poolConfig);
+
+    for (uint256 i = 0; i < config.addLiquidityAndSwapConfigs.length; i++) {
+      if (i == 20) break;
+      addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
+      swapWithBothPools(
+        config.addLiquidityAndSwapConfigs[i].swapConfig, (config.needClaimFlags >> i & 1) == 1
+      );
+    }
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -24,7 +38,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
     boundSwapConfig(config.swapConfig);
 
     CLPoolManagerRouter newRouter =
@@ -48,7 +62,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
     boundSwapConfig(config.swapConfig);
 
     config.swapConfig.amountSpecified = -config.swapConfig.amountSpecified;
@@ -70,7 +84,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
     boundSwapConfig(config.swapConfig);
 
     vm.warp(config.swapConfig.expiryTime + bound(config.swapConfig.expiryTime, 1, 1e18));
@@ -94,7 +108,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
     boundSwapConfig(config.swapConfig);
 
     config.swapConfig.amountSpecified =
@@ -122,7 +136,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     uint256 privKey
   ) public {
     initPools(config.poolConfig);
-    addLiquidity(config.positionConfig);
+    addLiquidity(config.addLiquidityConfig);
     boundSwapConfig(config.swapConfig);
 
     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({

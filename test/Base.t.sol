@@ -13,7 +13,7 @@ abstract contract BaseTest is Test {
     uint160 sqrtPriceX96;
   }
 
-  struct PositionConfig {
+  struct AddLiquidityConfig {
     int24 lowerTick;
     int24 upperTick;
     int256 liquidityDelta;
@@ -30,16 +30,20 @@ abstract contract BaseTest is Test {
     bool needExceed;
   }
 
+  struct AddLiquidityAndSwapConfig {
+    AddLiquidityConfig addLiquidityConfig;
+    SwapConfig swapConfig;
+  }
+
   struct SingleTestConfig {
     PoolConfig poolConfig;
-    PositionConfig positionConfig;
+    AddLiquidityConfig addLiquidityConfig;
     SwapConfig swapConfig;
   }
 
   struct MultipleTestConfig {
     PoolConfig poolConfig;
-    PositionConfig[] positionConfigs;
-    SwapConfig[] swapConfigs;
+    AddLiquidityAndSwapConfig[] addLiquidityAndSwapConfigs;
     uint256 needClaimFlags;
   }
 
@@ -79,13 +83,23 @@ abstract contract BaseTest is Test {
 
   function boundSwapConfig(SwapConfig memory swapConfig, uint160 sqrtPriceX96) internal view {
     swapConfig.amountSpecified = bound(swapConfig.amountSpecified, type(int128).min + 1, -1);
-    swapConfig.sqrtPriceLimitX96 = uint160(
-      swapConfig.zeroForOne
-        ? bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, sqrtPriceX96 - 1)
-        : bound(swapConfig.sqrtPriceLimitX96, sqrtPriceX96 + 1, MAX_SQRT_PRICE - 1)
-    );
+    if (sqrtPriceX96 == MIN_SQRT_PRICE + 1) {
+      swapConfig.sqrtPriceLimitX96 =
+        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 2, MAX_SQRT_PRICE - 1));
+      swapConfig.zeroForOne = false;
+    } else if (sqrtPriceX96 == MAX_SQRT_PRICE - 1) {
+      swapConfig.sqrtPriceLimitX96 =
+        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, MAX_SQRT_PRICE - 2));
+      swapConfig.zeroForOne = true;
+    } else {
+      swapConfig.sqrtPriceLimitX96 = uint160(
+        swapConfig.zeroForOne
+          ? bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, sqrtPriceX96 - 1)
+          : bound(swapConfig.sqrtPriceLimitX96, sqrtPriceX96 + 1, MAX_SQRT_PRICE - 1)
+      );
+    }
     swapConfig.maxAmountIn =
-      bound(swapConfig.maxAmountIn, -swapConfig.amountSpecified, type(int256).max);
+      bound(swapConfig.maxAmountIn, -swapConfig.amountSpecified, type(int256).max - 1);
     swapConfig.maxExchangeRate =
       bound(swapConfig.maxExchangeRate, 0, type(int256).max / -swapConfig.amountSpecified);
     swapConfig.expiryTime = bound(swapConfig.expiryTime, block.timestamp, type(uint128).max);
