@@ -5,47 +5,50 @@ import './Base.s.sol';
 
 contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
   using CurrencyLibrary for Currency;
+  using SafeERC20 for IERC20;
 
   /////////////////////////////////////
   // --- Parameters to Configure --- //
   /////////////////////////////////////
 
-  // --- pool configuration --- //
-  IERC20 token0;
-  IERC20 token1;
-  Currency currency0 = Currency.wrap(address(token0));
-  Currency currency1 = Currency.wrap(address(token1));
+  CreatePoolAndAddLiquidityRawParams rawParams = CreatePoolAndAddLiquidityRawParams({
+    token0: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
+    token1: address(0),
+    lpFee: 3e3, // 0.3%
+    tickSpacing: 10,
+    initPrice: 0.0005e18, // price of token0 / token1, base 1e18
+    priceTickLower: 0.0004e18,
+    priceTickUpper: 0.0006e18,
+    token0Amount: 1000e6, // accounting decimal precision
+    token1Amount: 1e18 // accounting decimal precision
+  });
 
-  // fees paid by swappers that accrue to liquidity providers
-  uint24 lpFee;
-  int24 tickSpacing;
+  address msgSender = 0x4f82e73EDb06d29Ff62C91EC8f5Ff06571bdeb29;
 
-  // starting price of the pool, in sqrtPriceX96
-  uint160 startingPrice;
-
-  // --- liquidity position configuration --- //
-  uint256 public token0Amount;
-  uint256 public token1Amount;
-
-  // range of the position
-  int24 tickLower; // must be a multiple of tickSpacing
-  int24 tickUpper;
   /////////////////////////////////////
 
-  address msgSender;
-
   function run() external {
+    require(rawParams.token0 != address(0) || rawParams.token1 != address(0), 'Invalid tokens');
     require(
-      token0 != IERC20(address(0)) && token1 != IERC20(address(0)) && token0 < token1,
-      'Invalid tokens'
+      rawParams.lpFee > 0 && rawParams.tickSpacing > 0 && rawParams.initPrice > 0,
+      'Invalid pool parameters'
     );
-    require(lpFee > 0 && tickSpacing > 0 && startingPrice > 0, 'Invalid pool parameters');
-    require(token0Amount > 0 && token1Amount > 0, 'Invalid token amounts');
-    require(
-      tickLower < tickUpper && tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
-      'Invalid tick range'
-    );
+    require(rawParams.token0Amount > 0 && rawParams.token1Amount > 0, 'Invalid token amounts');
+    require(rawParams.priceTickLower < rawParams.priceTickUpper, 'Invalid position range');
     require(msgSender != address(0), 'Invalid msgSender');
+
+    CreatePoolAndAddLiquidityParsedParams memory parsedParams = _parsePoolConfig(rawParams);
+
+    Currency currency0 = Currency.wrap(address(parsedParams.token0));
+    Currency currency1 = Currency.wrap(address(parsedParams.token1));
+
+    uint24 lpFee = parsedParams.lpFee;
+    int24 tickSpacing = parsedParams.tickSpacing;
+    uint160 startingPrice = parsedParams.initSqrtPriceX96;
+    int24 tickLower = parsedParams.tickLower;
+    int24 tickUpper = parsedParams.tickUpper;
+    uint256 token0Amount = parsedParams.token0Amount;
+    uint256 token1Amount = parsedParams.token1Amount;
 
     // tokens should be sorted
     PoolKey memory pool = PoolKey({
@@ -94,7 +97,7 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
 
     vm.startBroadcast();
-    tokenApprovals();
+    tokenApprovals(currency0, currency1);
     vm.stopBroadcast();
 
     // multicall to atomically create pool & add liquidity
@@ -127,18 +130,24 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     return (actions, params);
   }
 
-  function tokenApprovals() public {
+  function tokenApprovals(Currency currency0, Currency currency1) public {
     if (!currency0.isAddressZero()) {
-      token0.approve(address(permit2), type(uint256).max);
-      permit2.approve(
-        address(token0), address(positionManager), type(uint160).max, type(uint48).max
-      );
+      IERC20 token0 = IERC20(Currency.unwrap(currency0));
+      _safeApproveAllowancePermit2(permit2, token0, address(positionManager));
     }
     if (!currency1.isAddressZero()) {
-      token1.approve(address(permit2), type(uint256).max);
-      permit2.approve(
-        address(token1), address(positionManager), type(uint160).max, type(uint48).max
-      );
+      IERC20 token1 = IERC20(Currency.unwrap(currency1));
+      _safeApproveAllowancePermit2(permit2, token1, address(positionManager));
+    }
+  }
+
+  function _safeApproveAllowancePermit2(IAllowanceTransfer permit2, IERC20 token, address spender)
+    internal
+  {
+    (uint160 currentAllowance,,) = permit2.allowance(address(this), address(token), spender);
+    if (currentAllowance == 0) {
+      token.forceApprove(address(permit2), type(uint256).max);
+      permit2.approve(address(token), spender, type(uint160).max, type(uint48).max);
     }
   }
 }
