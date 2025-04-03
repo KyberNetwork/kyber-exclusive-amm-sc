@@ -4,10 +4,6 @@ pragma solidity ^0.8.0;
 import '../Base.s.sol';
 
 import 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol';
-import 'pancakeswap/infinity-core/src/pool-cl/libraries/TickMath.sol';
-import 'pancakeswap/infinity-core/src/types/Currency.sol';
-import 'pancakeswap/infinity-core/test/pool-cl/helpers/LiquidityAmounts.sol';
-
 import 'pancakeswap/infinity-periphery/src/libraries/Actions.sol';
 import 'pancakeswap/infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol';
 
