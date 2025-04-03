@@ -22,7 +22,7 @@ jobs:
           version: stable
 
       - name: Build
-        run: forge build
+        run: forge build --sizes
 
       - name: Run tests
         run: forge test --isolate
