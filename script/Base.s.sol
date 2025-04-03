@@ -5,6 +5,7 @@ import 'forge-std/Script.sol';
 import 'forge-std/StdJson.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
 
 import 'openzeppelin-contracts/contracts/utils/Address.sol';
@@ -167,9 +168,9 @@ contract BaseScript is Script {
       }
 
       uint256 decimals0 =
-        parsedParams.token0 == address(0) ? 18 : _getTokenDecimals(parsedParams.token0);
+        parsedParams.token0 == address(0) ? 18 : IERC20Metadata(parsedParams.token0).decimals();
       uint256 decimals1 =
-        parsedParams.token1 == address(0) ? 18 : _getTokenDecimals(parsedParams.token1);
+        parsedParams.token1 == address(0) ? 18 : IERC20Metadata(parsedParams.token1).decimals();
 
       uint256 initPriceX192 =
         FullMath.mulDiv(initPrice, (10 ** decimals1) << 192, 10 ** (decimals0 + 18));
@@ -211,20 +212,11 @@ contract BaseScript is Script {
     console.log('token1Amount: %s', parsedParams.token1Amount);
     console.log(
       'Decimals0: %s',
-      parsedParams.token0 == address(0) ? 18 : _getTokenDecimals(parsedParams.token0)
+      parsedParams.token0 == address(0) ? 18 : IERC20Metadata(parsedParams.token0).decimals()
     );
     console.log(
       'Decimals1: %s',
-      parsedParams.token1 == address(0) ? 18 : _getTokenDecimals(parsedParams.token1)
+      parsedParams.token1 == address(0) ? 18 : IERC20Metadata(parsedParams.token1).decimals()
     );
-  }
-
-  function _getTokenDecimals(address token) internal view returns (uint256) {
-    (bool success, bytes memory result) = token.staticcall(abi.encodeWithSignature('decimals()'));
-    if (success) {
-      return abi.decode(result, (uint256));
-    } else {
-      revert('Failed to get token decimals');
-    }
   }
 }
