@@ -67,4 +67,13 @@ For Pancakeswap Infinity version, follow these steps to deploy the hook:
   $ forge script script/pancakeswap/Deploy.s.sol:DeployScript --rpc-url <rpc_url> --private-key <private_key>
   ```
 
+#### Deployed Salts
+
+| Create3Factory | Deployer | Salt | Notes |
+|----------------|----------|------|-------|
+| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0xa67964bec72554b7533d1de697007f88deab31e98a72d1ee444ae00000e56f31 | Experimental: Ethereum, BSC, Base, Arbitrum |
+| 0x6aB5Ae6822647046626e83ee6dB8187151E1d5ab | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x910e0aee7417c534170c2ace1fdf762fac2cc141ac55585ec75c30000b365e9c | Experimental: Unichain |
+|                |          |      |       |
+
+
 The deployed addresses are automatically saved in the [Uniswap v4](./script/config/uniswap-v4-kem-hook.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-kem-hook.json) config files.
