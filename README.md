@@ -77,5 +77,12 @@ Uniswap v4
 | 0x6aB5Ae6822647046626e83ee6dB8187151E1d5ab | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x03afbd66823f9c53e25a99fa2e61e8b1545c07ff7f88692cf84ae000098d8467 | Experimental: Unichain |
 |                |          |      |       |
 
+Pancake Infinity CL
+
+| Create3Factory | Deployer | Salt | Notes |
+|----------------|----------|------|-------|
+| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 80000000000000000000000000002284e4abb5647dd5d690f777d29216928279 | Experimental: BSC |
+|                |          |      |       |
+
 
 The deployed addresses are automatically saved in the [Uniswap v4](./script/config/uniswap-v4-kem-hook.json) or [PancakeSwap Infinity](./script/config/pancakeswap-infinity-kem-hook.json) config files.

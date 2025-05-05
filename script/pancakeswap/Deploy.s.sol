@@ -7,7 +7,7 @@ import './Base.s.sol';
 contract DeployScript is BasePancakeSwapScript {
   function run() public {
     // Deploy the hook using CREATE3
-    bytes32 salt = keccak256('KS');
+    bytes32 salt = hex'80000000000000000000000000002284e4abb5647dd5d690f777d29216928279';
     bytes memory bytecode = abi.encodePacked(
       type(PancakeSwapInfinityKEMHook).creationCode,
       abi.encode(
