@@ -32,14 +32,7 @@ contract UniswapHookBaseTest is BaseTest, Deployers {
     );
     deployCodeTo(
       'UniswapV4KEMHook.sol',
-      abi.encode(
-        manager,
-        owner,
-        newAddressesLength1(operator),
-        newAddressesLength1(address(swapRouter)),
-        quoteSigner,
-        egRecipient
-      ),
+      abi.encode(manager, owner, newAddressesLength1(operator), quoteSigner, egRecipient),
       address(hook)
     );
 

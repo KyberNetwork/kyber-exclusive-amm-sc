@@ -15,9 +15,6 @@ abstract contract BaseKEMHook is IKEMHook, Rescuable, Ownable {
   mapping(address account => bool status) public claimable;
 
   /// @inheritdoc IKEMHook
-  mapping(address account => bool status) public whitelisted;
-
-  /// @inheritdoc IKEMHook
   address public quoteSigner;
 
   /// @inheritdoc IKEMHook
@@ -26,12 +23,10 @@ abstract contract BaseKEMHook is IKEMHook, Rescuable, Ownable {
   constructor(
     address initialOwner,
     address[] memory initialClaimableAccounts,
-    address[] memory initialWhitelistedAccounts,
     address initialQuoteSigner,
     address initialEgRecipient
   ) Ownable(initialOwner) {
     _updateClaimable(initialClaimableAccounts, true);
-    _updateWhitelisted(initialWhitelistedAccounts, true);
     _updateQuoteSigner(initialQuoteSigner);
     _updateEgRecipient(initialEgRecipient);
   }
@@ -39,11 +34,6 @@ abstract contract BaseKEMHook is IKEMHook, Rescuable, Ownable {
   /// @inheritdoc IKEMHook
   function updateClaimable(address[] calldata accounts, bool newStatus) public onlyOwner {
     _updateClaimable(accounts, newStatus);
-  }
-
-  /// @inheritdoc IKEMHook
-  function updateWhitelisted(address[] calldata accounts, bool newStatus) public onlyOwner {
-    _updateWhitelisted(accounts, newStatus);
   }
 
   /// @inheritdoc IKEMHook
@@ -61,14 +51,6 @@ abstract contract BaseKEMHook is IKEMHook, Rescuable, Ownable {
       claimable[accounts[i]] = newStatus;
 
       emit UpdateClaimable(accounts[i], newStatus);
-    }
-  }
-
-  function _updateWhitelisted(address[] memory accounts, bool newStatus) internal {
-    for (uint256 i = 0; i < accounts.length; i++) {
-      whitelisted[accounts[i]] = newStatus;
-
-      emit UpdateWhitelisted(accounts[i], newStatus);
     }
   }
 

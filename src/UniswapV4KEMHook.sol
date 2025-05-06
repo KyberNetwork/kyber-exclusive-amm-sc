@@ -33,18 +33,9 @@ contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
     IPoolManager _poolManager,
     address initialOwner,
     address[] memory initialClaimableAccounts,
-    address[] memory initialWhitelistedAccounts,
     address initialQuoteSigner,
     address initialEgRecipient
-  )
-    BaseKEMHook(
-      initialOwner,
-      initialClaimableAccounts,
-      initialWhitelistedAccounts,
-      initialQuoteSigner,
-      initialEgRecipient
-    )
-  {
+  ) BaseKEMHook(initialOwner, initialClaimableAccounts, initialQuoteSigner, initialEgRecipient) {
     poolManager = _poolManager;
     Hooks.validateHookPermissions(IHooks(address(this)), getHookPermissions());
   }
@@ -105,7 +96,6 @@ contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
   ) external view onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
-    require(whitelisted[sender], NonWhitelistedAccount(sender));
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (
@@ -126,7 +116,13 @@ contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
         quoteSigner,
         keccak256(
           abi.encode(
-            key, params.zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
+            sender,
+            key,
+            params.zeroForOne,
+            maxAmountIn,
+            maxExchangeRate,
+            exchangeRateDenom,
+            expiryTime
           )
         ),
         signature
