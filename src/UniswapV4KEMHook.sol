@@ -95,13 +95,14 @@ contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
     PoolKey calldata key,
     IPoolManager.SwapParams calldata params,
     bytes calldata hookData
-  ) external view onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
+  ) external onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
     require(params.amountSpecified < 0, ExactOutputDisabled());
 
     (
       int256 maxAmountIn,
       int256 maxExchangeRate,
       int256 exchangeRateDenom,
+      uint256 nonce,
       uint256 expiryTime,
       bytes memory signature
     ) = HookDataDecoder.decodeAllHookData(hookData);
@@ -111,23 +112,23 @@ contract UniswapV4KEMHook is BaseKEMHook, IUnlockCallback {
       -params.amountSpecified <= maxAmountIn,
       ExceededMaxAmountIn(maxAmountIn, -params.amountSpecified)
     );
+
+    _useUnorderedNonce(nonce);
+
+    bytes32 digest = keccak256(
+      abi.encode(
+        sender,
+        key,
+        params.zeroForOne,
+        maxAmountIn,
+        maxExchangeRate,
+        exchangeRateDenom,
+        nonce,
+        expiryTime
+      )
+    );
     require(
-      SignatureChecker.isValidSignatureNow(
-        quoteSigner,
-        keccak256(
-          abi.encode(
-            sender,
-            key,
-            params.zeroForOne,
-            maxAmountIn,
-            maxExchangeRate,
-            exchangeRateDenom,
-            expiryTime
-          )
-        ),
-        signature
-      ),
-      InvalidSignature()
+      SignatureChecker.isValidSignatureNow(quoteSigner, digest, signature), InvalidSignature()
     );
 
     return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);

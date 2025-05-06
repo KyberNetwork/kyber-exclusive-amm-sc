@@ -8,7 +8,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
 
-    uint256 egAmount = swapWithBothPools(config.swapConfig, false);
+    uint256 egAmount = swapWithBothPools(config.swapConfig, false, false);
 
     Currency currencyOut = config.swapConfig.zeroForOne ? currency1 : currency0;
     assertEq(vault.balanceOf(address(hook), currencyOut), egAmount);
@@ -23,66 +23,60 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   function test_pancakeswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
     initPools(config.poolConfig);
 
-    for (uint256 i = 0; i < config.addLiquidityAndSwapConfigs.length; i++) {
-      if (i == 20) break;
+    config.needClaimFlags = bound(config.needClaimFlags, 0, (1 << MULTIPLE_TEST_CONFIG_LENGTH) - 1);
+
+    for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
       addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
+      config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
       swapWithBothPools(
-        config.addLiquidityAndSwapConfigs[i].swapConfig, (config.needClaimFlags >> i & 1) == 1
+        config.addLiquidityAndSwapConfigs[i].swapConfig,
+        (config.needClaimFlags >> i & 1) == 1,
+        false
       );
     }
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_exactInput_not_whitelistSender_shouldFail(
+  function test_pancakeswap_exactInput_with_invalidSender_shouldFail(
     uint256 actorIndex,
     SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+
+    ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
+
+    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
     CLPoolManagerRouter newRouter =
       CLPoolManagerRouter(actors[bound(actorIndex, 0, actors.length - 1)]);
-    vm.assume(newRouter != swapRouter);
-    swapRouter = newRouter;
-    deployCodeTo('CLPoolManagerRouter.sol', abi.encode(vault, manager), address(swapRouter));
-
-    bytes memory signature = getSignature(
-      quoteSignerKey,
-      keccak256(
-        abi.encode(
-          swapRouter,
-          keyWithHook,
-          zeroForOne,
-          maxAmountIn,
-          maxExchangeRate,
-          exchangeRateDenom,
-          expiryTime
-        )
-      )
-    );
-    bytes memory hookData =
-      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, signature);
+    deployCodeTo('CLPoolManagerRouter.sol', abi.encode(vault, manager), address(newRouter));
 
     vm.expectRevert(
       abi.encodeWithSelector(
         CustomRevert.WrappedError.selector,
         hook,
         ICLHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IKEMHook.NonWhitelistedAccount.selector, swapRouter),
+        abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    newRouter.swap(keyWithHook, params, testSettings, hookData);
   }
 
   /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    config.swapConfig.amountSpecified = -config.swapConfig.amountSpecified;
+    swapConfig.amountSpecified = -swapConfig.amountSpecified;
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -93,7 +87,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -102,9 +96,9 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    vm.warp(config.swapConfig.expiryTime + bound(config.swapConfig.expiryTime, 1, 1e18));
+    vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -112,12 +106,12 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
         hook,
         ICLHooks.beforeSwap.selector,
         abi.encodeWithSelector(
-          IKEMHook.ExpiredSignature.selector, config.swapConfig.expiryTime, block.timestamp
+          IKEMHook.ExpiredSignature.selector, swapConfig.expiryTime, block.timestamp
         ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -126,10 +120,10 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    config.swapConfig.amountSpecified =
-      -bound(config.swapConfig.amountSpecified, config.swapConfig.maxAmountIn + 1, type(int256).max);
+    swapConfig.amountSpecified =
+      -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -137,54 +131,34 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
         hook,
         ICLHooks.beforeSwap.selector,
         abi.encodeWithSelector(
-          IKEMHook.ExceededMaxAmountIn.selector,
-          config.swapConfig.maxAmountIn,
-          -config.swapConfig.amountSpecified
+          IKEMHook.ExceededMaxAmountIn.selector, swapConfig.maxAmountIn, -swapConfig.amountSpecified
         ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_exactInput_with_invalidSignature_shouldFail(
-    SingleTestConfig memory config,
-    uint256 privKey
+    uint256 privKey,
+    SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
-      zeroForOne: config.swapConfig.zeroForOne,
-      amountSpecified: config.swapConfig.amountSpecified,
-      sqrtPriceLimitX96: config.swapConfig.sqrtPriceLimitX96
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
     privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
     vm.assume(privKey != quoteSignerKey);
 
-    bytes memory signature = getSignature(
-      privKey,
-      keccak256(
-        abi.encode(
-          keyWithHook,
-          config.swapConfig.zeroForOne,
-          config.swapConfig.maxAmountIn,
-          config.swapConfig.maxExchangeRate,
-          config.swapConfig.exchangeRateDenom,
-          config.swapConfig.expiryTime
-        )
-      )
-    );
-    bytes memory hookData = abi.encode(
-      config.swapConfig.maxAmountIn,
-      config.swapConfig.maxExchangeRate,
-      config.swapConfig.exchangeRateDenom,
-      config.swapConfig.expiryTime,
-      signature
-    );
+    bytes memory signature = getSignature(privKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -196,5 +170,18 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
       )
     );
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_exactInput_with_usedNonce_shouldFail(SingleTestConfig memory config)
+    public
+  {
+    initPools(config.poolConfig);
+    addLiquidity(config.addLiquidityConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+
+    swapWithBothPools(swapConfig, false, false);
+
+    swapWithBothPools(swapConfig, false, true);
   }
 }

@@ -4,8 +4,19 @@ pragma solidity ^0.8.0;
 import 'forge-std/Test.sol';
 
 import 'src/interfaces/IKEMHook.sol';
+import 'src/interfaces/IUnorderedNonce.sol';
 
 abstract contract BaseTest is Test {
+  /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
+  uint160 constant MIN_SQRT_PRICE = 4_295_128_739;
+
+  /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
+  uint160 constant MAX_SQRT_PRICE =
+    1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
+
+  /// @dev The number of tests in a multiple test config
+  uint256 constant MULTIPLE_TEST_CONFIG_LENGTH = 20;
+
   struct PoolConfig {
     uint24 fee;
     int24 tickSpacing;
@@ -26,6 +37,7 @@ abstract contract BaseTest is Test {
     int256 maxAmountIn;
     int256 maxExchangeRate;
     int256 exchangeRateDenom;
+    uint256 nonce;
     uint256 expiryTime;
     bool needExceed;
   }
@@ -43,15 +55,9 @@ abstract contract BaseTest is Test {
 
   struct MultipleTestConfig {
     PoolConfig poolConfig;
-    AddLiquidityAndSwapConfig[] addLiquidityAndSwapConfigs;
+    AddLiquidityAndSwapConfig[MULTIPLE_TEST_CONFIG_LENGTH] addLiquidityAndSwapConfigs;
     uint256 needClaimFlags;
   }
-
-  /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
-  uint160 internal constant MIN_SQRT_PRICE = 4_295_128_739;
-  /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
-  uint160 internal constant MAX_SQRT_PRICE =
-    1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
 
   address owner;
   address operator;
@@ -81,7 +87,11 @@ abstract contract BaseTest is Test {
     return int24(bound(tickSpacing, 1, 16_383));
   }
 
-  function boundSwapConfig(SwapConfig memory swapConfig, uint160 sqrtPriceX96) internal view {
+  function boundSwapConfig(SwapConfig memory swapConfig, uint160 sqrtPriceX96)
+    internal
+    view
+    returns (SwapConfig memory)
+  {
     swapConfig.amountSpecified = bound(swapConfig.amountSpecified, type(int128).min + 1, -1);
     if (sqrtPriceX96 == MIN_SQRT_PRICE + 1) {
       swapConfig.sqrtPriceLimitX96 =
@@ -103,6 +113,8 @@ abstract contract BaseTest is Test {
     swapConfig.maxExchangeRate =
       bound(swapConfig.maxExchangeRate, 0, type(int256).max / -swapConfig.amountSpecified);
     swapConfig.expiryTime = bound(swapConfig.expiryTime, block.timestamp, type(uint128).max);
+
+    return swapConfig;
   }
 
   function boundExchangeRateDenom(

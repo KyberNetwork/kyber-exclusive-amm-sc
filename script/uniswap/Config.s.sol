@@ -5,16 +5,9 @@ import './Base.s.sol';
 import 'src/interfaces/IKEMHook.sol';
 
 contract ConfigScript is BaseUniswapScript {
-  address[] notWhitelisted;
   address[] notClaimable;
 
   function run() public {
-    for (uint256 i; i < whitelistedAccounts.length; ++i) {
-      if (!IKEMHook(address(hook)).whitelisted(whitelistedAccounts[i])) {
-        notWhitelisted.push(whitelistedAccounts[i]);
-      }
-    }
-
     for (uint256 i; i < claimableAccounts.length; ++i) {
       if (!IKEMHook(address(hook)).claimable(claimableAccounts[i])) {
         notClaimable.push(claimableAccounts[i]);
@@ -22,9 +15,6 @@ contract ConfigScript is BaseUniswapScript {
     }
 
     vm.startBroadcast();
-    if (notWhitelisted.length > 0) {
-      IKEMHook(address(hook)).updateWhitelisted(notWhitelisted, true);
-    }
     if (notClaimable.length > 0) {
       IKEMHook(address(hook)).updateClaimable(notClaimable, true);
     }
