@@ -27,28 +27,6 @@ contract UniswapHookAuthorizationTest is UniswapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_updateWhitelisted_succeed(address sender, bool newStatus) public {
-    vm.prank(owner);
-    vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.UpdateWhitelisted(sender, newStatus);
-    hook.updateWhitelisted(newAddressesLength1(sender), newStatus);
-    assertEq(hook.whitelisted(sender), newStatus);
-  }
-
-  /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_updateWhitelisted_notOwner_shouldFail(
-    uint256 actorIndex,
-    address sender,
-    bool newStatus
-  ) public {
-    address actor = actors[bound(actorIndex, 0, actors.length - 1)];
-    vm.assume(actor != owner);
-    vm.prank(actor);
-    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    hook.updateWhitelisted(newAddressesLength1(sender), newStatus);
-  }
-
-  /// forge-config: default.fuzz.runs = 20
   function test_uniswap_updateQuoteSigner_succeed(address newSigner) public {
     vm.assume(newSigner != address(0));
     vm.prank(owner);

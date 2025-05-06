@@ -35,12 +35,7 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture {
     swapRouter = new CLPoolManagerRouter(vault, poolManager);
     hook = IKEMHook(
       new PancakeSwapInfinityKEMHook(
-        poolManager,
-        owner,
-        newAddressesLength1(operator),
-        newAddressesLength1(address(swapRouter)),
-        quoteSigner,
-        egRecipient
+        poolManager, owner, newAddressesLength1(operator), quoteSigner, egRecipient
       )
     );
 

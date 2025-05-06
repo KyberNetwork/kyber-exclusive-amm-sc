@@ -43,7 +43,13 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       quoteSignerKey,
       keccak256(
         abi.encode(
-          keyWithHook, zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
+          swapRouter,
+          keyWithHook,
+          zeroForOne,
+          maxAmountIn,
+          maxExchangeRate,
+          exchangeRateDenom,
+          expiryTime
         )
       )
     );
@@ -90,18 +96,24 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_swap_exactInput_not_whitelistSender_shouldFail(
+  function test_uniswap_swap_exactInput_with_invalidSender_shouldFail(
     uint256 actorIndex,
     int256 amountSpecified,
     bool zeroForOne,
-    uint160 sqrtPriceLimitX96
+    uint160 sqrtPriceLimitX96,
+    int256 maxAmountIn,
+    int256 maxExchangeRate,
+    int256 exchangeRateDenom,
+    uint256 expiryTime
   ) public {
     PoolSwapTest router = PoolSwapTest(actors[bound(actorIndex, 0, actors.length - 1)]);
     vm.assume(router != swapRouter);
     deployCodeTo('PoolSwapTest.sol', abi.encode(manager), address(router));
 
-    (amountSpecified, zeroForOne, sqrtPriceLimitX96,,,) =
-      normalizeTestInput(amountSpecified, zeroForOne, sqrtPriceLimitX96, 0, 0, 0);
+    (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime) =
+    normalizeTestInput(
+      amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime
+    );
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
       amountSpecified: amountSpecified,
@@ -109,16 +121,33 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       sqrtPriceLimitX96: sqrtPriceLimitX96
     });
 
+    bytes memory signature = getSignature(
+      quoteSignerKey,
+      keccak256(
+        abi.encode(
+          swapRouter,
+          keyWithHook,
+          zeroForOne,
+          maxAmountIn,
+          maxExchangeRate,
+          exchangeRateDenom,
+          expiryTime
+        )
+      )
+    );
+    bytes memory hookData =
+      abi.encode(maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime, signature);
+
     vm.expectRevert(
       abi.encodeWithSelector(
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IKEMHook.NonWhitelistedAccount.selector, router),
+        abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    router.swap(keyWithHook, params, testSettings, '');
+    router.swap(keyWithHook, params, testSettings, hookData);
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -224,7 +253,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_swap_exactInput_with_invalidSignature_shouldFail(
+  function test_uniswap_swap_exactInput_with_invalidSigner_shouldFail(
     uint256 privKey,
     int256 amountSpecified,
     bool zeroForOne,
@@ -251,7 +280,13 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       privKey,
       keccak256(
         abi.encode(
-          keyWithHook, zeroForOne, maxAmountIn, maxExchangeRate, exchangeRateDenom, expiryTime
+          swapRouter,
+          keyWithHook,
+          zeroForOne,
+          maxAmountIn,
+          maxExchangeRate,
+          exchangeRateDenom,
+          expiryTime
         )
       )
     );

@@ -11,9 +11,6 @@ interface IKEMHook is ICommon {
   /// @notice Thrown when trying to claim tokens by non-claimable account
   error NonClaimableAccount(address account);
 
-  /// @notice Thrown when trying to swap by non-whitelisted account
-  error NonWhitelistedAccount(address account);
-
   /// @notice Thrown when trying to swap in exact output mode
   error ExactOutputDisabled();
 
@@ -37,9 +34,6 @@ interface IKEMHook is ICommon {
   /// @notice Emitted when the claimable status of an account is updated
   event UpdateClaimable(address indexed account, bool status);
 
-  /// @notice Emitted when the whitelisted status of an account is updated
-  event UpdateWhitelisted(address indexed account, bool status);
-
   /// @notice Emitted when the quote signer is updated
   event UpdateQuoteSigner(address indexed quoteSigner);
 
@@ -55,9 +49,6 @@ interface IKEMHook is ICommon {
   /// @notice Return the claimable status of an account
   function claimable(address) external view returns (bool);
 
-  /// @notice Return the whitelisted status of an account
-  function whitelisted(address) external view returns (bool);
-
   /// @notice Return the address responsible for signing the quote
   function quoteSigner() external view returns (address);
 
@@ -71,14 +62,6 @@ interface IKEMHook is ICommon {
    * @param newStatus the new status for the accounts
    */
   function updateClaimable(address[] calldata accounts, bool newStatus) external;
-
-  /**
-   * @notice Update the whitelisted status of some accounts
-   * @notice Can only be called by the current owner
-   * @param accounts the addresses of the accounts to update
-   * @param newStatus the new status for the accounts
-   */
-  function updateWhitelisted(address[] calldata accounts, bool newStatus) external;
 
   /**
    * @notice Update the quote signer
