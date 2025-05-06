@@ -8,7 +8,7 @@ import {CalldataDecoder} from 'uniswap/v4-periphery/src/libraries/CalldataDecode
  * @notice Library for abi decoding hook data
  */
 library HookDataDecoder {
-  /// @dev equivalent to: abi.decode(params, (int256, int256, int256, uint256, bytes)) in calldata
+  /// @dev equivalent to: abi.decode(hookData, (int256, int256, int256, uint256, bytes)) in calldata
   function decodeAllHookData(bytes calldata hookData)
     internal
     pure
@@ -31,7 +31,7 @@ library HookDataDecoder {
     signature = CalldataDecoder.toBytes(hookData, 4);
   }
 
-  /// @dev equivalent to: abi.decode(params, (int256, int256, int256, uint256, bytes)) in calldata
+  /// @dev equivalent to: (, int256 maxExchangeRate, int256 exchangeRateDenom,,) = abi.decode(hookData, (int256, int256, int256, uint256, bytes)) in calldata
   function decodeExchangeRate(bytes calldata hookData)
     internal
     pure
