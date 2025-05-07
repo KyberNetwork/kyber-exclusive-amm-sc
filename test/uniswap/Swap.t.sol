@@ -7,8 +7,9 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   function test_uniswap_exactInput_succeed(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
+    config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
-    uint256 egAmount = swapWithBothPools(config.swapConfig, false, false);
+    uint256 egAmount = swapWithBothPools(config.swapConfig, false, true, false);
 
     Currency currencyOut = config.swapConfig.zeroForOne ? currency1 : currency0;
     assertEq(manager.balanceOf(address(hook), currencyOut.toId()), egAmount);
@@ -31,6 +32,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       swapWithBothPools(
         config.addLiquidityAndSwapConfigs[i].swapConfig,
         (config.needClaimFlags >> i & 1) == 1,
+        false,
         false
       );
     }
@@ -175,10 +177,21 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   function test_uniswap_exactInput_with_usedNonce_shouldFail(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+    config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
-    swapWithBothPools(swapConfig, false, false);
+    swapWithBothPools(config.swapConfig, false, false, false);
 
-    swapWithBothPools(swapConfig, false, true);
+    swapWithBothPools(config.swapConfig, false, false, true);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_exactInput_with_zeroNonce_succeed(SingleTestConfig memory config) public {
+    initPools(config.poolConfig);
+    addLiquidity(config.addLiquidityConfig);
+    config.swapConfig.nonce = 0;
+
+    swapWithBothPools(config.swapConfig, false, false, false);
+
+    swapWithBothPools(config.swapConfig, false, false, false);
   }
 }

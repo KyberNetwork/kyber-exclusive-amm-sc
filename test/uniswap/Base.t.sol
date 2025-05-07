@@ -93,10 +93,12 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     return boundSwapConfig(swapConfig, sqrtPriceX96);
   }
 
-  function swapWithBothPools(SwapConfig memory swapConfig, bool needClaim, bool needExpectRevert)
-    internal
-    returns (uint256 egAmount)
-  {
+  function swapWithBothPools(
+    SwapConfig memory swapConfig,
+    bool needClaim,
+    bool needExpectEmit,
+    bool needExpectRevert
+  ) internal returns (uint256 egAmount) {
     boundSwapConfig(swapConfig);
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -132,6 +134,10 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     egAmount =
       uint256(maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0));
 
+    if (needExpectEmit) {
+      vm.expectEmit(true, true, true, true, address(hook));
+      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
+    }
     if (needExpectRevert) {
       vm.expectRevert(
         abi.encodeWithSelector(
@@ -142,9 +148,6 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
           abi.encodeWithSelector(Hooks.HookCallFailed.selector)
         )
       );
-    } else {
-      vm.expectEmit(true, true, true, true, address(hook));
-      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
     }
 
     BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, hookData);

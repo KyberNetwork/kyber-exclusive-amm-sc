@@ -119,10 +119,12 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     return boundSwapConfig(swapConfig, sqrtPriceX96);
   }
 
-  function swapWithBothPools(SwapConfig memory swapConfig, bool needClaim, bool needExpectRevert)
-    internal
-    returns (uint256 egAmount)
-  {
+  function swapWithBothPools(
+    SwapConfig memory swapConfig,
+    bool needClaim,
+    bool needExpectEmit,
+    bool needExpectRevert
+  ) internal returns (uint256 egAmount) {
     boundSwapConfig(swapConfig);
 
     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
@@ -158,6 +160,10 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     egAmount =
       uint256(maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0));
 
+    if (needExpectEmit) {
+      vm.expectEmit(true, true, true, true, address(hook));
+      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
+    }
     if (needExpectRevert) {
       vm.expectRevert(
         abi.encodeWithSelector(
@@ -168,9 +174,6 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
           abi.encodeWithSelector(Hooks.HookCallFailed.selector)
         )
       );
-    } else {
-      vm.expectEmit(true, true, true, true, address(hook));
-      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
     }
 
     BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, hookData);

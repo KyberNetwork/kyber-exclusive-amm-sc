@@ -14,6 +14,9 @@ contract UnorderedNonce is IUnorderedNonce {
   /// @notice Consume a nonce, reverting if it has already been used
   /// @param nonce uint256, the nonce to consume. The top 248 bits are the word, the bottom 8 bits indicate the bit position
   function _useUnorderedNonce(uint256 nonce) internal {
+    // ignore nonce 0 for flexibility
+    if (nonce == 0) return;
+
     uint256 wordPos = nonce >> 8;
     uint256 bitPos = uint8(nonce);
 
