@@ -2,11 +2,63 @@
 pragma solidity ^0.8.0;
 
 import 'forge-std/Test.sol';
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 import 'src/interfaces/IKEMHook.sol';
+import 'src/interfaces/IUnorderedNonce.sol';
 
 abstract contract BaseTest is Test {
+  /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
+  uint160 constant MIN_SQRT_PRICE = 4_295_128_739;
+
+  /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
+  uint160 constant MAX_SQRT_PRICE =
+    1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
+
+  /// @dev The number of tests in a multiple test config
+  uint256 constant MULTIPLE_TEST_CONFIG_LENGTH = 20;
+
+  struct PoolConfig {
+    uint24 fee;
+    int24 tickSpacing;
+    int256 sqrtPriceX96seed;
+    uint160 sqrtPriceX96;
+  }
+
+  struct AddLiquidityConfig {
+    int24 lowerTick;
+    int24 upperTick;
+    int256 liquidityDelta;
+  }
+
+  struct SwapConfig {
+    bool zeroForOne;
+    int256 amountSpecified;
+    uint160 sqrtPriceLimitX96;
+    int256 maxAmountIn;
+    int256 maxExchangeRate;
+    int256 exchangeRateDenom;
+    uint256 nonce;
+    uint256 expiryTime;
+    bool needExceed;
+  }
+
+  struct AddLiquidityAndSwapConfig {
+    AddLiquidityConfig addLiquidityConfig;
+    SwapConfig swapConfig;
+  }
+
+  struct SingleTestConfig {
+    PoolConfig poolConfig;
+    AddLiquidityConfig addLiquidityConfig;
+    SwapConfig swapConfig;
+  }
+
+  struct MultipleTestConfig {
+    PoolConfig poolConfig;
+    AddLiquidityAndSwapConfig[MULTIPLE_TEST_CONFIG_LENGTH] addLiquidityAndSwapConfigs;
+    uint256 needClaimFlags;
+  }
+
   address owner;
   address operator;
   address quoteSigner;
@@ -27,41 +79,56 @@ abstract contract BaseTest is Test {
     vm.deal(address(this), type(uint256).max);
   }
 
-  function normalizeTestInput(
-    int256 amountSpecified,
-    bool zeroForOne,
-    uint160 sqrtPriceLimitX96,
-    int256 maxAmountIn,
-    int256 maxExchangeRate,
-    uint256 expiryTime
-  ) public view returns (int256, bool, uint160, int256, int256, uint256) {
-    amountSpecified = int256(bound(amountSpecified, -3e11, -1e3));
-    sqrtPriceLimitX96 = uint160(
-      zeroForOne
-        ? bound(sqrtPriceLimitX96, getMinPriceLimit(), getSqrtPrice1_1() - 100)
-        : bound(sqrtPriceLimitX96, getSqrtPrice1_1() + 100, getMaxPriceLimit())
-    );
-    maxAmountIn = bound(maxAmountIn, -amountSpecified, type(int256).max - 1);
-    maxExchangeRate = bound(maxExchangeRate, 0, type(int256).max / -amountSpecified);
-    expiryTime = bound(expiryTime, block.timestamp, block.timestamp + 1e6);
-
-    return
-      (amountSpecified, zeroForOne, sqrtPriceLimitX96, maxAmountIn, maxExchangeRate, expiryTime);
+  function boundFee(uint24 fee) internal pure returns (uint24) {
+    return uint24(bound(fee, 0, 999_999));
   }
 
-  function getExchangeRateDenom(
-    int256 amountIn,
-    int256 maxExchangeRate,
-    int256 amountOutWithoutHook,
-    int256 exchangeRateDenom,
-    bool exceeded
-  ) internal pure returns (int256) {
+  function boundTickSpacing(int24 tickSpacing) internal pure returns (int24) {
+    return int24(bound(tickSpacing, 1, 16_383));
+  }
+
+  function boundSwapConfig(SwapConfig memory swapConfig, uint160 sqrtPriceX96)
+    internal
+    view
+    returns (SwapConfig memory)
+  {
+    swapConfig.amountSpecified = bound(swapConfig.amountSpecified, type(int128).min + 1, -1);
+    if (sqrtPriceX96 == MIN_SQRT_PRICE + 1) {
+      swapConfig.sqrtPriceLimitX96 =
+        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 2, MAX_SQRT_PRICE - 1));
+      swapConfig.zeroForOne = false;
+    } else if (sqrtPriceX96 == MAX_SQRT_PRICE - 1) {
+      swapConfig.sqrtPriceLimitX96 =
+        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, MAX_SQRT_PRICE - 2));
+      swapConfig.zeroForOne = true;
+    } else {
+      swapConfig.sqrtPriceLimitX96 = uint160(
+        swapConfig.zeroForOne
+          ? bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, sqrtPriceX96 - 1)
+          : bound(swapConfig.sqrtPriceLimitX96, sqrtPriceX96 + 1, MAX_SQRT_PRICE - 1)
+      );
+    }
+    swapConfig.maxAmountIn =
+      bound(swapConfig.maxAmountIn, -swapConfig.amountSpecified, type(int256).max - 1);
+    swapConfig.maxExchangeRate =
+      bound(swapConfig.maxExchangeRate, 0, type(int256).max / -swapConfig.amountSpecified);
+    swapConfig.expiryTime = bound(swapConfig.expiryTime, block.timestamp, type(uint128).max);
+
+    return swapConfig;
+  }
+
+  function boundExchangeRateDenom(
+    SwapConfig memory swapConfig,
+    int128 amountIn,
+    int128 amountOutWithoutHook
+  ) internal pure {
     int256 border = amountOutWithoutHook > 0
-      ? amountIn * maxExchangeRate / amountOutWithoutHook
+      ? amountIn * swapConfig.maxExchangeRate / amountOutWithoutHook
       : type(int256).max;
-    return (exceeded && border != type(int256).max) || border == 0
-      ? bound(exchangeRateDenom, border + 1, type(int256).max)
-      : bound(exchangeRateDenom, 1, border);
+    swapConfig.exchangeRateDenom = swapConfig.needExceed && border != type(int256).max
+      || border == 0
+      ? bound(swapConfig.exchangeRateDenom, border + 1, type(int256).max)
+      : bound(swapConfig.exchangeRateDenom, 1, border);
   }
 
   function getSignature(uint256 privKey, bytes32 digest)
@@ -82,10 +149,4 @@ abstract contract BaseTest is Test {
     values = new uint256[](1);
     values[0] = value;
   }
-
-  function getMinPriceLimit() internal view virtual returns (uint160);
-
-  function getMaxPriceLimit() internal view virtual returns (uint160);
-
-  function getSqrtPrice1_1() internal view virtual returns (uint160);
 }

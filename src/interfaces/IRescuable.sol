@@ -7,6 +7,10 @@ import {IERC1155} from 'openzeppelin-contracts/contracts/token/ERC1155/IERC1155.
 import {IERC20, SafeERC20} from 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
 import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
 
+/**
+ * @title IRescuable
+ * @notice Interface for the Rescuable contract
+ */
 interface IRescuable is ICommon {
   /// @notice Emitted when some of ERC20 tokens are rescued
   event RescueERC20s(IERC20[] tokens, uint256[] amounts, address recipient);

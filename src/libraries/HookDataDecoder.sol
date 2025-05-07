@@ -8,7 +8,7 @@ import {CalldataDecoder} from 'uniswap/v4-periphery/src/libraries/CalldataDecode
  * @notice Library for abi decoding hook data
  */
 library HookDataDecoder {
-  /// @dev equivalent to: abi.decode(hookData, (int256, int256, int256, uint256, bytes)) in calldata
+  /// @dev equivalent to: abi.decode(hookData, (int256, int256, int256, uint256, uint256, bytes)) in calldata
   function decodeAllHookData(bytes calldata hookData)
     internal
     pure
@@ -16,6 +16,7 @@ library HookDataDecoder {
       int256 maxAmountIn,
       int256 maxExchangeRate,
       int256 exchangeRateDenom,
+      uint256 nonce,
       uint256 expiryTime,
       bytes memory signature
     )
@@ -25,13 +26,14 @@ library HookDataDecoder {
       maxAmountIn := calldataload(hookData.offset)
       maxExchangeRate := calldataload(add(hookData.offset, 0x20))
       exchangeRateDenom := calldataload(add(hookData.offset, 0x40))
-      expiryTime := calldataload(add(hookData.offset, 0x60))
+      nonce := calldataload(add(hookData.offset, 0x60))
+      expiryTime := calldataload(add(hookData.offset, 0x80))
     }
 
-    signature = CalldataDecoder.toBytes(hookData, 4);
+    signature = CalldataDecoder.toBytes(hookData, 5);
   }
 
-  /// @dev equivalent to: (, int256 maxExchangeRate, int256 exchangeRateDenom,,) = abi.decode(hookData, (int256, int256, int256, uint256, bytes)) in calldata
+  /// @dev equivalent to: (, int256 maxExchangeRate, int256 exchangeRateDenom,,,) = abi.decode(hookData, (int256, int256, int256, uint256, uint256, bytes)) in calldata
   function decodeExchangeRate(bytes calldata hookData)
     internal
     pure
