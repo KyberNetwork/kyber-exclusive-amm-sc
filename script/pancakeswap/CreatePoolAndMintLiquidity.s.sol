@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import './Base.s.sol';
 
-contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
+contract CreatePoolAndMintLiquidityScript is BasePancakeSwapScript {
   using CurrencyLibrary for Currency;
+  using CLPoolParametersHelper for bytes32;
 
   /////////////////////////////////////
   // --- Parameters to Configure --- //
@@ -49,8 +50,9 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
       currency0: currency0,
       currency1: currency1,
       fee: lpFee,
-      tickSpacing: tickSpacing,
-      hooks: hook
+      hooks: hook,
+      poolManager: poolManager,
+      parameters: bytes32(uint256(hook.getHooksRegistrationBitmap())).setTickSpacing(tickSpacing)
     });
     bytes memory hookData = new bytes(0);
 
@@ -59,8 +61,8 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     // Converts token amounts to liquidity units
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       startingPrice,
-      TickMath.getSqrtPriceAtTick(tickLower),
-      TickMath.getSqrtPriceAtTick(tickUpper),
+      TickMath.getSqrtRatioAtTick(tickLower),
+      TickMath.getSqrtRatioAtTick(tickUpper),
       token0Amount,
       token1Amount
     );
@@ -88,7 +90,7 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     );
 
     // if the pool is an ETH pair, native tokens are to be transferred
-    uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
+    uint256 valueToPass = currency0.isNative() ? amount0Max : 0;
 
     vm.startBroadcast();
     tokenApprovals();
@@ -96,7 +98,7 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
 
     // multicall to atomically create pool & add liquidity
     vm.broadcast();
-    positionManager.multicall{value: valueToPass}(params);
+    IMulticall(address(positionManager)).multicall{value: valueToPass}(params);
   }
 
   /// @dev helper function for encoding mint liquidity operation
@@ -112,7 +114,7 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     bytes memory hookData
   ) internal view returns (bytes memory, bytes[] memory) {
     bytes memory actions = abi.encodePacked(
-      uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP)
+      uint8(Actions.CL_MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP)
     );
 
     bytes[] memory params = new bytes[](3);
@@ -120,18 +122,18 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
       poolKey, _tickLower, _tickUpper, liquidity, amount0Max, amount1Max, recipient, hookData
     );
     params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
-    params[2] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, msgSender);
+    params[2] = abi.encode(CurrencyLibrary.NATIVE, msgSender);
     return (actions, params);
   }
 
   function tokenApprovals() public {
-    if (!currency0.isAddressZero()) {
+    if (!currency0.isNative()) {
       token0.approve(address(permit2), type(uint256).max);
       permit2.approve(
         address(token0), address(positionManager), type(uint160).max, type(uint48).max
       );
     }
-    if (!currency1.isAddressZero()) {
+    if (!currency1.isNative()) {
       token1.approve(address(permit2), type(uint256).max);
       permit2.approve(
         address(token1), address(positionManager), type(uint160).max, type(uint48).max
