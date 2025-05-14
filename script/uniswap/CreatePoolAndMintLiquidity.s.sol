@@ -70,7 +70,7 @@ contract CreatePoolAndMintLiquidityScript is BaseUniswapScript {
     uint256 amount1Max = token1Amount + 1 wei;
 
     (bytes memory actions, bytes[] memory mintParams) = _mintLiquidityParams(
-      pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData
+      pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, msgSender, hookData
     );
 
     // multicall parameters
