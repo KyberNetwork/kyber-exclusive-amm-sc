@@ -73,15 +73,15 @@ Uniswap v4
 
 | Create3Factory | Deployer | Salt | Notes |
 |----------------|----------|------|-------|
-| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0xda3b38dd2dea17f18961a6be1dadd1e6493c4bf9def5f66f21812000021a0048 | Experimental: Ethereum, BSC, Base, Arbitrum |
-| 0x6aB5Ae6822647046626e83ee6dB8187151E1d5ab | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x5f740a0c1568b6d3aaf75d0428803889c7425c2e373e1cfcbb53c0000a24d9cd | Experimental: Unichain |
+| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x8329f0fb40c11ce4a94a5ba2a623c7613defcd71c59646ad71a90000048752d9 | Experimental: Ethereum, BSC, Base, Arbitrum |
+| 0x6aB5Ae6822647046626e83ee6dB8187151E1d5ab | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x9af635f21a33ab28a0b9fdf48551eb3acd9fbfbdd696d71a07dd600005ac770b | Experimental: Unichain |
 |                |          |      |       |
 
 Pancake Infinity CL
 
 | Create3Factory | Deployer | Salt | Notes |
 |----------------|----------|------|-------|
-| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0xa800000000000000000000000000604851b6cd7ae8ae5ca9c4a2b165a52f3bde | Experimental: BSC |
+| 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B | 0x47e1E291CE08ea68554583f2eC3B99351030C5F8 | 0x6000000000000000000000000000000d461bf33de59eeb1d4ea839fd6e78aaf2 | Experimental: BSC |
 |                |          |      |       |
 
 
