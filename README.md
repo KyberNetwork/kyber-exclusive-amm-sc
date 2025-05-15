@@ -67,7 +67,7 @@ For Pancakeswap Infinity version, follow these steps to deploy the hook:
   $ forge script script/pancakeswap/Deploy.s.sol:DeployScript --rpc-url <rpc_url> --private-key <private_key>
   ```
 
-  #### Deployed Salts
+#### Deployed Salts
 
 Uniswap v4
 
