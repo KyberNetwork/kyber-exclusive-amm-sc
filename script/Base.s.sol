@@ -39,7 +39,7 @@ contract BaseScript is Script {
     owner = _readAddress('owner');
     claimableAccounts = _readAddressArray('claimable-accounts');
     quoteSigner = _readAddress('quote-signer');
-    egRecipient = _readAddress('eg-recipient');
+    egRecipient = _readAddress('EG-recipient');
   }
 
   function _getJsonString(string memory key) internal view returns (string memory) {

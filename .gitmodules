@@ -4,3 +4,6 @@
 [submodule "lib/infinity-periphery"]
 	path = lib/infinity-periphery
 	url = https://github.com/pancakeswap/infinity-periphery
+[submodule "lib/ks-common-sc"]
+	path = lib/ks-common-sc
+	url = https://github.com/KyberNetwork/ks-common-sc

@@ -49,17 +49,17 @@ contract UniswapHookAuthorizationTest is UniswapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_updateEgRecipient_succeed(address recipient) public {
+  function test_uniswap_updateEGRecipient_succeed(address recipient) public {
     vm.assume(recipient != address(0));
     vm.prank(owner);
     vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.UpdateEgRecipient(recipient);
-    hook.updateEgRecipient(recipient);
+    emit IKEMHook.UpdateEGRecipient(recipient);
+    hook.updateEGRecipient(recipient);
     assertEq(hook.egRecipient(), recipient);
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_updateEgRecipient_notOwner_shouldFail(uint256 actorIndex, address recipient)
+  function test_uniswap_updateEGRecipient_notOwner_shouldFail(uint256 actorIndex, address recipient)
     public
   {
     vm.assume(recipient != address(0));
@@ -67,7 +67,7 @@ contract UniswapHookAuthorizationTest is UniswapHookBaseTest {
     vm.assume(actor != owner);
     vm.prank(actor);
     vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    hook.updateEgRecipient(recipient);
+    hook.updateEGRecipient(recipient);
   }
 
   function test_uniswap_updateQuoteSigner_with_zeroAddress() public {
@@ -76,9 +76,9 @@ contract UniswapHookAuthorizationTest is UniswapHookBaseTest {
     hook.updateQuoteSigner(address(0));
   }
 
-  function test_uniswap_updateEgRecipient_with_zeroAddress() public {
+  function test_uniswap_updateEGRecipient_with_zeroAddress() public {
     vm.prank(owner);
     vm.expectRevert(ICommon.InvalidAddress.selector);
-    hook.updateEgRecipient(address(0));
+    hook.updateEGRecipient(address(0));
   }
 }

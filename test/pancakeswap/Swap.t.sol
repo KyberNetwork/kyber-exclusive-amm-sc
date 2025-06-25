@@ -16,9 +16,9 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
 
     tokens = newAddressesLength1(Currency.unwrap(currencyOut));
     vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, newUint256sLength1(uint256(egAmount)));
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, newUint256sLength1(uint256(egAmount)));
     vm.prank(operator);
-    hook.claimEgTokens(tokens, newUint256sLength1(0));
+    hook.claimEGTokens(tokens, newUint256sLength1(0));
   }
 
   function test_pancakeswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {

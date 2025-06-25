@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
+contract PancakeSwapHookClaimEGTest is PancakeSwapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEgTokens_succeed(
+  function test_pancakeswap_claimEGTokens_succeed(
     uint256 mintAmount0,
     uint256 mintAmount1,
     uint256 claimAmount0,
@@ -29,10 +29,10 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
-    hook.claimEgTokens(tokens, amounts);
+    hook.claimEGTokens(tokens, amounts);
 
     assertEq(
       IERC20(Currency.unwrap(currency0)).balanceOf(egRecipient),
@@ -45,7 +45,7 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEgNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
+  function test_pancakeswap_claimEGNative_succeed(uint256 mintAmount, uint256 claimAmount) public {
     mintAmount = bound(mintAmount, 0, uint128(type(int128).max));
     claimAmount = bound(claimAmount, 0, mintAmount);
     vault.lock(abi.encode(mintAmount, type(uint256).max));
@@ -59,9 +59,9 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
 
     vm.prank(operator);
     vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.ClaimEgTokens(egRecipient, tokens, amounts);
+    emit IKEMHook.ClaimEGTokens(egRecipient, tokens, amounts);
     amounts[0] = claimAmount;
-    hook.claimEgTokens(tokens, amounts);
+    hook.claimEGTokens(tokens, amounts);
 
     assertEq(
       egRecipient.balance, claimAmount == 0 ? mintAmount : claimAmount + recipientBalanceBefore
@@ -69,7 +69,7 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_claimEgTokens_withoutClaimRole_shouldFail(
+  function test_pancakeswap_claimEGTokens_withoutClaimRole_shouldFail(
     uint256 actorIndex,
     uint256 mintAmount0,
     uint256 mintAmount1,
@@ -93,7 +93,7 @@ contract PancakeSwapHookClaimEgTest is PancakeSwapHookBaseTest {
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
     vm.expectRevert(abi.encodeWithSelector(IKEMHook.NonClaimableAccount.selector, actor));
-    hook.claimEgTokens(tokens, amounts);
+    hook.claimEGTokens(tokens, amounts);
   }
 
   function lockAcquired(bytes calldata data) public returns (bytes memory) {

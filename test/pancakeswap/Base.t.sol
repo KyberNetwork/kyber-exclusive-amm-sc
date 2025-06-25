@@ -186,7 +186,7 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
 
     if (needClaim) {
       vm.prank(operator);
-      try hook.claimEgTokens(tokens, new uint256[](2)) {}
+      try hook.claimEGTokens(tokens, new uint256[](2)) {}
       catch (bytes memory reason) {
         assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
       }

@@ -19,7 +19,7 @@ contract ConfigScript is BasePancakeSwapScript {
       IKEMHook(address(hook)).updateClaimable(notClaimable, true);
     }
     if (IKEMHook(address(hook)).egRecipient() != egRecipient) {
-      IKEMHook(address(hook)).updateEgRecipient(egRecipient);
+      IKEMHook(address(hook)).updateEGRecipient(egRecipient);
     }
     if (IKEMHook(address(hook)).quoteSigner() != quoteSigner) {
       IKEMHook(address(hook)).updateQuoteSigner(quoteSigner);

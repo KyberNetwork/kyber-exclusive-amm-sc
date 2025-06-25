@@ -50,17 +50,17 @@ contract PancakeSwapHookAuthorizationTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_updateEgRecipient_succeed(address recipient) public {
+  function test_pancakeswap_updateEGRecipient_succeed(address recipient) public {
     vm.assume(recipient != address(0));
     vm.prank(owner);
     vm.expectEmit(true, true, true, true, address(hook));
-    emit IKEMHook.UpdateEgRecipient(recipient);
-    hook.updateEgRecipient(recipient);
+    emit IKEMHook.UpdateEGRecipient(recipient);
+    hook.updateEGRecipient(recipient);
     assertEq(hook.egRecipient(), recipient);
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_updateEgRecipient_notOwner_shouldFail(
+  function test_pancakeswap_updateEGRecipient_notOwner_shouldFail(
     uint256 actorIndex,
     address recipient
   ) public {
@@ -69,7 +69,7 @@ contract PancakeSwapHookAuthorizationTest is PancakeSwapHookBaseTest {
     vm.assume(actor != owner);
     vm.prank(actor);
     vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, actor));
-    hook.updateEgRecipient(recipient);
+    hook.updateEGRecipient(recipient);
   }
 
   function test_pancakeswap_updateQuoteSigner_with_zeroAddress() public {
@@ -78,9 +78,9 @@ contract PancakeSwapHookAuthorizationTest is PancakeSwapHookBaseTest {
     hook.updateQuoteSigner(address(0));
   }
 
-  function test_pancakeswap_updateEgRecipient_with_zeroAddress() public {
+  function test_pancakeswap_updateEGRecipient_with_zeroAddress() public {
     vm.prank(owner);
     vm.expectRevert(ICommon.InvalidAddress.selector);
-    hook.updateEgRecipient(address(0));
+    hook.updateEGRecipient(address(0));
   }
 }
