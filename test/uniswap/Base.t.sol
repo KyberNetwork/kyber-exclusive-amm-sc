@@ -48,14 +48,7 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     );
     deployCodeTo(
       'UniswapV4KEMHook.sol',
-      abi.encode(
-        manager,
-        owner,
-        newAddressesLength1(operator),
-        newAddressesLength1(address(swapRouter)),
-        quoteSigner,
-        egRecipient
-      ),
+      abi.encode(manager, owner, newAddressesLength1(operator), quoteSigner, egRecipient),
       address(hook)
     );
   }
@@ -84,7 +77,9 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
       salt: 0
     });
     (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
-    params = createFuzzyLiquidityParamsWithTightBound(keyWithoutHook, params, sqrtPriceX96, 20);
+    params = createFuzzyLiquidityParamsWithTightBound(
+      keyWithoutHook, params, sqrtPriceX96, MULTIPLE_TEST_CONFIG_LENGTH
+    );
 
     try modifyLiquidityNoChecks.modifyLiquidity(keyWithoutHook, params, '') {
       modifyLiquidityNoChecks.modifyLiquidity(keyWithHook, params, '');
@@ -93,15 +88,17 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     }
   }
 
-  function boundSwapConfig(SwapConfig memory swapConfig) internal view {
+  function boundSwapConfig(SwapConfig memory swapConfig) internal view returns (SwapConfig memory) {
     (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
-    boundSwapConfig(swapConfig, sqrtPriceX96);
+    return boundSwapConfig(swapConfig, sqrtPriceX96);
   }
 
-  function swapWithBothPools(SwapConfig memory swapConfig, bool needClaim)
-    internal
-    returns (uint256 egAmount)
-  {
+  function swapWithBothPools(
+    SwapConfig memory swapConfig,
+    bool needClaim,
+    bool needExpectEmit,
+    bool needExpectRevert
+  ) internal returns (uint256 egAmount) {
     boundSwapConfig(swapConfig);
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
@@ -130,30 +127,28 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
 
     boundExchangeRateDenom(swapConfig, amountIn, amountOutWithoutHook);
 
-    bytes memory signature = getSignature(
-      quoteSignerKey,
-      keccak256(
-        abi.encode(
-          keyWithHook,
-          swapConfig.zeroForOne,
-          swapConfig.maxAmountIn,
-          swapConfig.maxExchangeRate,
-          swapConfig.exchangeRateDenom,
-          swapConfig.expiryTime
-        )
-      )
-    );
-    bytes memory hookData = abi.encode(
-      swapConfig.maxAmountIn,
-      swapConfig.maxExchangeRate,
-      swapConfig.exchangeRateDenom,
-      swapConfig.expiryTime,
-      signature
-    );
+    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
     int256 maxAmountOut = amountIn * swapConfig.maxExchangeRate / swapConfig.exchangeRateDenom;
     egAmount =
       uint256(maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0));
+
+    if (needExpectEmit) {
+      vm.expectEmit(true, true, true, true, address(hook));
+      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
+    }
+    if (needExpectRevert) {
+      vm.expectRevert(
+        abi.encodeWithSelector(
+          CustomRevert.WrappedError.selector,
+          hook,
+          IHooks.beforeSwap.selector,
+          abi.encodeWithSelector(IUnorderedNonce.NonceAlreadyUsed.selector, swapConfig.nonce),
+          abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+        )
+      );
+    }
 
     BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, hookData);
     int128 amountOutWithHook;
@@ -179,27 +174,39 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
-    bytes memory signature = getSignature(
-      quoteSignerKey,
-      keccak256(
-        abi.encode(
-          keyWithHook,
-          swapConfig.zeroForOne,
-          swapConfig.maxAmountIn,
-          swapConfig.maxExchangeRate,
-          swapConfig.exchangeRateDenom,
-          swapConfig.expiryTime
-        )
+    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
+
+    swapRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
+
+  function getDigest(SwapConfig memory swapConfig) internal view returns (bytes32) {
+    return keccak256(
+      abi.encode(
+        swapRouter,
+        keyWithHook,
+        swapConfig.zeroForOne,
+        swapConfig.maxAmountIn,
+        swapConfig.maxExchangeRate,
+        swapConfig.exchangeRateDenom,
+        swapConfig.nonce,
+        swapConfig.expiryTime
       )
     );
-    bytes memory hookData = abi.encode(
+  }
+
+  function getHookData(SwapConfig memory swapConfig, bytes memory signature)
+    internal
+    pure
+    returns (bytes memory)
+  {
+    return abi.encode(
       swapConfig.maxAmountIn,
       swapConfig.maxExchangeRate,
       swapConfig.exchangeRateDenom,
+      swapConfig.nonce,
       swapConfig.expiryTime,
       signature
     );
-
-    swapRouter.swap(keyWithHook, params, testSettings, hookData);
   }
 }

@@ -83,7 +83,7 @@ abstract contract Rescuable is IRescuable {
         amount = token.balanceOf(address(this));
       }
       if (amount > 0) {
-        SafeERC20.safeTransfer(token, recipient, amount);
+        token.safeTransfer(recipient, amount);
       }
     }
 

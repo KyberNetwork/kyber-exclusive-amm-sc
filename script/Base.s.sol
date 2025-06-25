@@ -24,7 +24,6 @@ contract BaseScript is Script {
 
   address owner;
   address[] claimableAccounts;
-  address[] whitelistedAccounts;
   address quoteSigner;
   address egRecipient;
 
@@ -39,7 +38,6 @@ contract BaseScript is Script {
 
     owner = _readAddress('owner');
     claimableAccounts = _readAddressArray('claimable-accounts');
-    whitelistedAccounts = _readAddressArray('whitelisted-accounts');
     quoteSigner = _readAddress('quote-signer');
     egRecipient = _readAddress('eg-recipient');
   }

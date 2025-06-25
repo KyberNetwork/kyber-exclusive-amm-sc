@@ -7,8 +7,9 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   function test_uniswap_exactInput_succeed(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
+    config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
-    uint256 egAmount = swapWithBothPools(config.swapConfig, false);
+    uint256 egAmount = swapWithBothPools(config.swapConfig, false, true, false);
 
     Currency currencyOut = config.swapConfig.zeroForOne ? currency1 : currency0;
     assertEq(manager.balanceOf(address(hook), currencyOut.toId()), egAmount);
@@ -23,48 +24,60 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   function test_uniswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
     initPools(config.poolConfig);
 
-    for (uint256 i = 0; i < config.addLiquidityAndSwapConfigs.length; i++) {
-      if (i == 20) break;
+    config.needClaimFlags = bound(config.needClaimFlags, 0, (1 << MULTIPLE_TEST_CONFIG_LENGTH) - 1);
+
+    for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
       addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
+      config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
       swapWithBothPools(
-        config.addLiquidityAndSwapConfigs[i].swapConfig, (config.needClaimFlags >> i & 1) == 1
+        config.addLiquidityAndSwapConfigs[i].swapConfig,
+        (config.needClaimFlags >> i & 1) == 1,
+        false,
+        false
       );
     }
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_uniswap_exactInput_not_whitelistSender_shouldFail(
+  function test_uniswap_exactInput_with_invalidSender_shouldFail(
     uint256 actorIndex,
     SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+
+    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
+
+    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
     PoolSwapTest newRouter = PoolSwapTest(actors[bound(actorIndex, 0, actors.length - 1)]);
-    vm.assume(newRouter != swapRouter);
-    swapRouter = newRouter;
-    deployCodeTo('PoolSwapTest.sol', abi.encode(manager), address(swapRouter));
+    deployCodeTo('PoolSwapTest.sol', abi.encode(manager), address(newRouter));
 
     vm.expectRevert(
       abi.encodeWithSelector(
         CustomRevert.WrappedError.selector,
         hook,
         IHooks.beforeSwap.selector,
-        abi.encodeWithSelector(IKEMHook.NonWhitelistedAccount.selector, swapRouter),
+        abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    newRouter.swap(keyWithHook, params, testSettings, hookData);
   }
 
   /// forge-config: default.fuzz.runs = 20
   function test_uniswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    config.swapConfig.amountSpecified = -config.swapConfig.amountSpecified;
+    swapConfig.amountSpecified = -swapConfig.amountSpecified;
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -75,7 +88,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -84,9 +97,9 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    vm.warp(config.swapConfig.expiryTime + bound(config.swapConfig.expiryTime, 1, 1e18));
+    vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -94,12 +107,12 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         hook,
         IHooks.beforeSwap.selector,
         abi.encodeWithSelector(
-          IKEMHook.ExpiredSignature.selector, config.swapConfig.expiryTime, block.timestamp
+          IKEMHook.ExpiredSignature.selector, swapConfig.expiryTime, block.timestamp
         ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -108,10 +121,10 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
-    config.swapConfig.amountSpecified =
-      -bound(config.swapConfig.amountSpecified, config.swapConfig.maxAmountIn + 1, type(int256).max);
+    swapConfig.amountSpecified =
+      -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -119,54 +132,34 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
         hook,
         IHooks.beforeSwap.selector,
         abi.encodeWithSelector(
-          IKEMHook.ExceededMaxAmountIn.selector,
-          config.swapConfig.maxAmountIn,
-          -config.swapConfig.amountSpecified
+          IKEMHook.ExceededMaxAmountIn.selector, swapConfig.maxAmountIn, -swapConfig.amountSpecified
         ),
         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
       )
     );
-    swapWithHookOnly(config.swapConfig);
+    swapWithHookOnly(swapConfig);
   }
 
   /// forge-config: default.fuzz.runs = 20
   function test_uniswap_exactInput_with_invalidSignature_shouldFail(
-    SingleTestConfig memory config,
-    uint256 privKey
+    uint256 privKey,
+    SingleTestConfig memory config
   ) public {
     initPools(config.poolConfig);
     addLiquidity(config.addLiquidityConfig);
-    boundSwapConfig(config.swapConfig);
+    SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
 
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-      zeroForOne: config.swapConfig.zeroForOne,
-      amountSpecified: config.swapConfig.amountSpecified,
-      sqrtPriceLimitX96: config.swapConfig.sqrtPriceLimitX96
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
     privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
     vm.assume(privKey != quoteSignerKey);
 
-    bytes memory signature = getSignature(
-      privKey,
-      keccak256(
-        abi.encode(
-          keyWithHook,
-          config.swapConfig.zeroForOne,
-          config.swapConfig.maxAmountIn,
-          config.swapConfig.maxExchangeRate,
-          config.swapConfig.exchangeRateDenom,
-          config.swapConfig.expiryTime
-        )
-      )
-    );
-    bytes memory hookData = abi.encode(
-      config.swapConfig.maxAmountIn,
-      config.swapConfig.maxExchangeRate,
-      config.swapConfig.exchangeRateDenom,
-      config.swapConfig.expiryTime,
-      signature
-    );
+    bytes memory signature = getSignature(privKey, getDigest(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -178,5 +171,27 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
       )
     );
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_exactInput_with_usedNonce_shouldFail(SingleTestConfig memory config) public {
+    initPools(config.poolConfig);
+    addLiquidity(config.addLiquidityConfig);
+    config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
+
+    swapWithBothPools(config.swapConfig, false, false, false);
+
+    swapWithBothPools(config.swapConfig, false, false, true);
+  }
+
+  /// forge-config: default.fuzz.runs = 20
+  function test_uniswap_exactInput_with_zeroNonce_succeed(SingleTestConfig memory config) public {
+    initPools(config.poolConfig);
+    addLiquidity(config.addLiquidityConfig);
+    config.swapConfig.nonce = 0;
+
+    swapWithBothPools(config.swapConfig, false, false, false);
+
+    swapWithBothPools(config.swapConfig, false, false, false);
   }
 }
