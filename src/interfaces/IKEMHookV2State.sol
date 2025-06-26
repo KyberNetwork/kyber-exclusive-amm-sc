@@ -6,6 +6,11 @@ pragma solidity ^0.8.0;
  * @notice Common state getters for the KEMHookV2 contracts
  */
 interface IKEMHookV2State {
+  enum ClaimType {
+    ProtocolEG,
+    PositionEG
+  }
+
   /// @notice Return the role for the claimants
   function CLAIM_ROLE() external view returns (bytes32);
 

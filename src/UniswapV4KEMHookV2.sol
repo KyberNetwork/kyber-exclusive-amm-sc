@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {BaseKEMHookV2} from './base/BaseKEMHookV2.sol';
 import './interfaces/IKEMHookV2.sol';
 
+import {IHooks} from 'uniswap/v4-core/src/interfaces/IHooks.sol';
 import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
 import {IUnlockCallback} from 'uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol';
 import {Hooks} from 'uniswap/v4-core/src/libraries/Hooks.sol';
@@ -65,36 +66,26 @@ contract UniswapV4KEMHookV2 is BaseKEMHookV2, IUnlockCallback {
   {
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
-    poolManager.unlock(abi.encode(tokens, amounts));
+    poolManager.unlock(abi.encodePacked(ClaimType.ProtocolEG, msg.data[4:]));
   }
 
   /// @inheritdoc IKEMHookV2Actions
-  function claimPositionEG(uint256 tokenId) public {}
+  function claimPositionEG(uint256 tokenId) public {
+    poolManager.unlock(abi.encodePacked(ClaimType.PositionEG, tokenId));
+  }
 
   /// @inheritdoc IUnlockCallback
   function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {
-    (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
-    address _egRecipient = egRecipient;
-
-    for (uint256 i = 0; i < tokens.length; i++) {
-      address token = tokens[i];
-      uint256 id = uint256(uint160(token));
-
-      uint256 amount = amounts[i];
-      if (amount == 0) {
-        amount = protocolEGAmountOf[token];
-      }
-
-      if (amount > 0) {
-        amounts[i] = amount;
-        protocolEGAmountOf[token] -= amount;
-        poolManager.burn(address(this), id, amount);
-        poolManager.take(Currency.wrap(token), _egRecipient, amount);
-      }
-    }
-
-    emit ClaimProtocolEG(_egRecipient, tokens, amounts);
+    _handleCallback(data);
   }
+
+  function _take(address token, address recipient, uint256 amount) internal override {
+    uint256 id = uint256(uint160(token));
+    poolManager.burn(address(this), id, amount);
+    poolManager.take(Currency.wrap(token), recipient, amount);
+  }
+
+  function _claimPositionEG(bytes calldata data) internal override {}
 
   function beforeSwap(
     address sender,

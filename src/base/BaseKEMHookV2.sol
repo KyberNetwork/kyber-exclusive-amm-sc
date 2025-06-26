@@ -61,15 +61,47 @@ abstract contract BaseKEMHookV2 is IKEMHookV2, Rescuable, Management, UnorderedN
   }
 
   /// @inheritdoc IKEMHookV2Admin
-  function updateProtocolEGFee(bytes32 poolId, int256 newFee)
-    external
-    onlyRole(DEFAULT_ADMIN_ROLE)
-  {
+  function updateProtocolEGFee(bytes32 poolId, int256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
     int256 oldFee = protocolEGFeeOf[poolId];
     protocolEGFeeOf[poolId] = newFee;
 
     emit UpdateProtocolEGFee(poolId, oldFee, newFee);
   }
+
+  function _handleCallback(bytes calldata data) internal {
+    ClaimType claimType = ClaimType(uint8(data[0]));
+    if (claimType == ClaimType.ProtocolEG) {
+      _claimProtocolEG(data[1:]);
+    } else if (claimType == ClaimType.PositionEG) {
+      _claimPositionEG(data[1:]);
+    }
+  }
+
+  function _claimProtocolEG(bytes calldata data) internal {
+    (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
+    address _egRecipient = egRecipient;
+
+    for (uint256 i = 0; i < tokens.length; i++) {
+      address token = tokens[i];
+
+      uint256 amount = amounts[i];
+      if (amount == 0) {
+        amount = protocolEGAmountOf[token];
+      }
+
+      if (amount > 0) {
+        amounts[i] = amount;
+        protocolEGAmountOf[token] -= amount;
+        _take(token, _egRecipient, amount);
+      }
+    }
+
+    emit ClaimProtocolEG(_egRecipient, tokens, amounts);
+  }
+
+  function _take(address token, address recipient, uint256 amount) internal virtual;
+
+  function _claimPositionEG(bytes calldata data) internal virtual;
 
   function _beforeSwap(
     address sender,

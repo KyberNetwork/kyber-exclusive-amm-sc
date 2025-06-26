@@ -71,35 +71,25 @@ contract PancakeswapInfinityKEMHookV2 is BaseKEMHookV2, ILockCallback {
   {
     require(tokens.length == amounts.length, MismatchedArrayLengths());
 
-    vault.lock(abi.encode(tokens, amounts));
+    vault.lock(abi.encodePacked(ClaimType.ProtocolEG, msg.data[4:]));
   }
 
   /// @inheritdoc IKEMHookV2Actions
-  function claimPositionEG(uint256 tokenId) public {}
+  function claimPositionEG(uint256 tokenId) public {
+    vault.lock(abi.encodePacked(ClaimType.PositionEG, tokenId));
+  }
 
   /// @inheritdoc ILockCallback
   function lockAcquired(bytes calldata data) external onlyVault returns (bytes memory) {
-    (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
-    address _egRecipient = egRecipient;
-
-    for (uint256 i = 0; i < tokens.length; i++) {
-      address token = tokens[i];
-
-      uint256 amount = amounts[i];
-      if (amount == 0) {
-        amount = protocolEGAmountOf[token];
-      }
-
-      if (amount > 0) {
-        amounts[i] = amount;
-        protocolEGAmountOf[token] -= amount;
-        vault.burn(address(this), Currency.wrap(token), amount);
-        vault.take(Currency.wrap(token), _egRecipient, amount);
-      }
-    }
-
-    emit ClaimProtocolEG(_egRecipient, tokens, amounts);
+    _handleCallback(data);
   }
+
+  function _take(address token, address recipient, uint256 amount) internal override {
+    vault.burn(address(this), Currency.wrap(token), amount);
+    vault.take(Currency.wrap(token), recipient, amount);
+  }
+
+  function _claimPositionEG(bytes calldata data) internal override {}
 
   function beforeSwap(
     address sender,
