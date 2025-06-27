@@ -13,10 +13,10 @@ interface IKEMHookV2Events {
   event UpdateEGRecipient(address indexed oldRecipient, address indexed newRecipient);
 
   /// @notice Emitted when the protocol's EG fee for a given pool is updated
-  event UpdateProtocolEGFee(bytes32 indexed poolId, int256 oldFee, int256 newFee);
+  event UpdateProtocolEGFee(bytes32 indexed poolId, uint24 oldFee, uint24 newFee);
 
   /// @notice Emitted when an eg-token is absorbed
-  event AbsorbEGToken(bytes32 indexed poolId, address indexed token, int256 amount);
+  event AbsorbEG(bytes32 indexed poolId, address indexed token, uint256 amount);
 
   /// @notice Emitted when some of protocol's shares of EG are claimed
   event ClaimProtocolEG(address indexed egRecipient, address[] tokens, uint256[] amounts);

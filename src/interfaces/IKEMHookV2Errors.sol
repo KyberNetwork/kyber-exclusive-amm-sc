@@ -6,6 +6,9 @@ pragma solidity ^0.8.0;
  * @notice Common errors for the KEMHookV2 contracts
  */
 interface IKEMHookV2Errors {
+  /// @notice Thrown when protocol EG fee is set too high
+  error TooLargeProtocolEGFee(uint24 fee);
+
   /// @notice Thrown when trying to swap in exact output mode
   error ExactOutputDisabled();
 
@@ -24,7 +27,5 @@ interface IKEMHookV2Errors {
    * @param maxAmountIn the maximum input amount
    * @param amountIn the actual input amount
    */
-  error ExceededMaxAmountIn(int256 maxAmountIn, int256 amountIn);
-
-
+  error TooLargeAmountIn(int256 maxAmountIn, int256 amountIn);
 }
