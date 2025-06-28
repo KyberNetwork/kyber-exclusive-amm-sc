@@ -31,7 +31,9 @@ abstract contract FFHookBeforeSwap is
     int256 amountSpecified,
     bytes calldata hookData
   ) internal {
-    require(amountSpecified < 0, ExactOutDisabled());
+    if (amountSpecified >= 0) {
+      revert ExactOutDisabled();
+    }
 
     (
       int256 maxAmountIn,
@@ -41,10 +43,18 @@ abstract contract FFHookBeforeSwap is
       bytes memory signature
     ) = CalldataDecoderExt.decodeHookData(hookData);
 
-    require(fairExchangeRate <= type(uint128).max, TooLargeFairExchangeRate(fairExchangeRate));
-    require(block.timestamp <= expiryTime, ExpiredSignature(expiryTime, block.timestamp));
+    if (fairExchangeRate > type(uint128).max) {
+      revert TooLargeFairExchangeRate(fairExchangeRate);
+    }
+
+    if (block.timestamp > expiryTime) {
+      revert ExpiredSignature(expiryTime, block.timestamp);
+    }
+
     unchecked {
-      require(-amountSpecified <= maxAmountIn, TooLargeAmountIn(maxAmountIn, -amountSpecified));
+      if (-amountSpecified > maxAmountIn) {
+        revert TooLargeAmountIn(maxAmountIn, -amountSpecified);
+      }
     }
 
     _useUnorderedNonce(nonce);
@@ -52,7 +62,9 @@ abstract contract FFHookBeforeSwap is
     bytes32 hash = keccak256(
       abi.encode(sender, poolId, zeroForOne, maxAmountIn, fairExchangeRate, nonce, expiryTime)
     );
-    require(SignatureChecker.isValidSignatureNow(quoteSigner, hash, signature), InvalidSignature());
+    if (!SignatureChecker.isValidSignatureNow(quoteSigner, hash, signature)) {
+      revert InvalidSignature();
+    }
 
     SLOT0_DATA_BEFORE_SLOT.tstore(_getSlot0Data(poolId));
     LIQUIDITY_BEFORE_SLOT.tstore(_getLiquidity(poolId));

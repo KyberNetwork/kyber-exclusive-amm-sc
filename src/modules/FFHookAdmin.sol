@@ -37,9 +37,7 @@ abstract contract FFHookAdmin is
     _updateQuoteSigner(newSigner);
   }
 
-  function _updateQuoteSigner(address newSigner) internal {
-    require(newSigner != address(0), InvalidAddress());
-
+  function _updateQuoteSigner(address newSigner) internal checkAddress(newSigner) {
     address oldSigner = quoteSigner;
     quoteSigner = newSigner;
 
@@ -51,9 +49,7 @@ abstract contract FFHookAdmin is
     _updateEGRecipient(newRecipient);
   }
 
-  function _updateEGRecipient(address newRecipient) internal {
-    require(newRecipient != address(0), InvalidAddress());
-
+  function _updateEGRecipient(address newRecipient) internal checkAddress(newRecipient) {
     address oldRecipient = egRecipient;
     egRecipient = newRecipient;
 
@@ -62,7 +58,9 @@ abstract contract FFHookAdmin is
 
   /// @inheritdoc IFFHookAdmin
   function updateProtocolEGFee(bytes32 poolId, uint24 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(newFee <= MathExt.PIPS_DENOMINATOR, TooLargeProtocolEGFee(newFee));
+    if (newFee > MathExt.PIPS_DENOMINATOR) {
+      revert TooLargeProtocolEGFee(newFee);
+    }
 
     uint24 oldFee = pools[poolId].protocolEGFee;
     pools[poolId].protocolEGFee = newFee;
@@ -74,6 +72,7 @@ abstract contract FFHookAdmin is
   function claimProtocolEGs(address[] memory tokens, uint256[] memory amounts)
     external
     onlyRole(KSRoles.OPERATOR_ROLE)
+    checkLengths(tokens.length, amounts.length)
   {
     for (uint256 i = 0; i < tokens.length; i++) {
       if (amounts[i] == 0) {
@@ -90,8 +89,9 @@ abstract contract FFHookAdmin is
   /// @inheritdoc IFFHookAdmin
   function rescueEGs(address[] memory tokens, uint256[] memory amounts)
     external
-    onlyRole(DEFAULT_ADMIN_ROLE)
     whenPaused
+    onlyRole(DEFAULT_ADMIN_ROLE)
+    checkLengths(tokens.length, amounts.length)
   {
     for (uint256 i = 0; i < tokens.length; i++) {
       if (amounts[i] == 0) {
