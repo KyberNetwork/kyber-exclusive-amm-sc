@@ -4,8 +4,8 @@ pragma solidity ^0.8.26;
 /// @title IFFHookBeforeSwap
 /// @notice Interface for the FFHookBeforeSwap module
 interface IFFHookBeforeSwap {
-  /// @notice Thrown when exact output is disabled
-  error ExactOutputDisabled();
+  /// @notice Thrown when trying to swap with exact output
+  error ExactOutDisabled();
 
   /// @notice Thrown when the fair exchange rate is too large
   error TooLargeFairExchangeRate(uint256 rate);

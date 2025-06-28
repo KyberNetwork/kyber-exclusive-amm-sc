@@ -9,6 +9,9 @@ interface IFFHookAdmin {
   /// @notice Thrown when the protocol EG fee is set too large
   error TooLargeProtocolEGFee(uint24 fee);
 
+  /// @notice Thrown when trying to unpause the hook
+  error UnpauseDisabled();
+
   /// @notice Emitted when the quote signer is updated
   event UpdateQuoteSigner(address indexed oldSigner, address indexed newSigner);
 

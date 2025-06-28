@@ -31,7 +31,7 @@ abstract contract FFHookBeforeSwap is
     int256 amountSpecified,
     bytes calldata hookData
   ) internal {
-    require(amountSpecified < 0, ExactOutputDisabled());
+    require(amountSpecified < 0, ExactOutDisabled());
 
     (
       int256 maxAmountIn,

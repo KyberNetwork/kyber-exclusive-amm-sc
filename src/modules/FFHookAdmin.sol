@@ -103,4 +103,8 @@ abstract contract FFHookAdmin is
 
     emit RescueEGs(egRecipient, tokens, amounts);
   }
+
+  function _unpause() internal override {
+    revert UnpauseDisabled();
+  }
 }
