@@ -1,23 +1,28 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
-import {IKEMHookV2Errors} from '../interfaces/IKEMHookV2Errors.sol';
+import {IFFHookBeforeSwap} from '../interfaces/modules/IFFHookBeforeSwap.sol';
 
-import {BaseKEMHookV2State} from './BaseKEMHookV2State.sol';
-import {PoolStateView} from './PoolStateView.sol';
-import {UnorderedNonce} from './UnorderedNonce.sol';
+import {FFHookNonces} from './FFHookNonces.sol';
+import {FFHookStateView} from './FFHookStateView.sol';
+import {FFHookStorage} from './FFHookStorage.sol';
 
-import {KEMHookV2DataDecoder} from '../libraries/KEMHookV2DataDecoder.sol';
+import {CalldataDecoderExt} from '../libraries/CalldataDecoderExt.sol';
+import {SafeTransientStorageAccess} from '../libraries/SafeTransientStorageAccess.sol';
 
 import {SignatureChecker} from
   'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
-abstract contract BaseKEMHookV2BeforeSwap is
-  IKEMHookV2Errors,
-  BaseKEMHookV2State,
-  UnorderedNonce,
-  PoolStateView
+/// @title FFHookBeforeSwap
+/// @notice Before swap module for the FFHook contract
+abstract contract FFHookBeforeSwap is
+  IFFHookBeforeSwap,
+  FFHookStorage,
+  FFHookStateView,
+  FFHookNonces
 {
+  using SafeTransientStorageAccess for bytes32;
+
   /// @notice Internal logic for `beforeSwap`
   function _beforeSwap(
     address sender,
@@ -34,8 +39,9 @@ abstract contract BaseKEMHookV2BeforeSwap is
       uint256 nonce,
       uint256 expiryTime,
       bytes memory signature
-    ) = KEMHookV2DataDecoder.decodeAllHookData(hookData);
+    ) = CalldataDecoderExt.decodeHookData(hookData);
 
+    require(fairExchangeRate <= type(uint128).max, TooLargeFairExchangeRate(fairExchangeRate));
     require(block.timestamp <= expiryTime, ExpiredSignature(expiryTime, block.timestamp));
     unchecked {
       require(-amountSpecified <= maxAmountIn, TooLargeAmountIn(maxAmountIn, -amountSpecified));
@@ -48,6 +54,7 @@ abstract contract BaseKEMHookV2BeforeSwap is
     );
     require(SignatureChecker.isValidSignatureNow(quoteSigner, hash, signature), InvalidSignature());
 
-    _setPoolStateStart(poolId);
+    SLOT0_DATA_BEFORE_SLOT.tstore(_getSlot0Data(poolId));
+    LIQUIDITY_BEFORE_SLOT.tstore(_getLiquidity(poolId));
   }
 }

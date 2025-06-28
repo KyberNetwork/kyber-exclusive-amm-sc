@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
-import {IUnorderedNonce} from '../interfaces/IUnorderedNonce.sol';
+import {IFFHookNonces} from '../interfaces/modules/IFFHookNonces.sol';
 
 /**
  * @title Unordered Nonce
  * @notice Contract state and methods for using unordered nonces in signatures
  */
-contract UnorderedNonce is IUnorderedNonce {
-  /// @inheritdoc IUnorderedNonce
+contract FFHookNonces is IFFHookNonces {
+  /// @inheritdoc IFFHookNonces
   mapping(uint256 word => uint256 bitmap) public nonces;
 
   /// @notice Consume a nonce, reverting if it has already been used

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
-/**
- * @title IKEMHookV2Errors
- * @notice Common errors for the KEMHookV2 contracts
- */
-interface IKEMHookV2Errors {
-  /// @notice Thrown when protocol EG fee is set too high
-  error TooLargeProtocolEGFee(uint24 fee);
-
-  /// @notice Thrown when trying to swap in exact output mode
+/// @title IFFHookBeforeSwap
+/// @notice Interface for the FFHookBeforeSwap module
+interface IFFHookBeforeSwap {
+  /// @notice Thrown when exact output is disabled
   error ExactOutputDisabled();
+
+  /// @notice Thrown when the fair exchange rate is too large
+  error TooLargeFairExchangeRate(uint256 rate);
 
   /**
    * @notice Thrown when the signature is expired

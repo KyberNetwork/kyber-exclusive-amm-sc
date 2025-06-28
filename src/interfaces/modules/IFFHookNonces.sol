@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
 /**
- * @title IUnorderedNonce
- * @notice Interface for the UnorderedNonce contract
+ * @title IFFHookNonces
+ * @notice Interface for the FFHookNonces module
  */
-interface IUnorderedNonce {
+interface IFFHookNonces {
   /// @notice Thrown when a nonce has already been used
   error NonceAlreadyUsed(uint256 nonce);
 

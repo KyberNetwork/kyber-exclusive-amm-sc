@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
 import {ProtocolFeeLibrary} from 'uniswap/v4-core/src/libraries/ProtocolFeeLibrary.sol';
 import {SqrtPriceMath} from 'uniswap/v4-core/src/libraries/SqrtPriceMath.sol';
