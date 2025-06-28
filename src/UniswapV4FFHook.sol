@@ -19,8 +19,6 @@ import {ModifyLiquidityParams, SwapParams} from 'uniswap/v4-core/src/types/PoolO
 import {Position} from 'uniswap/v4-core/src/libraries/Position.sol';
 import {StateLibrary} from 'uniswap/v4-core/src/libraries/StateLibrary.sol';
 
-import {KSRoles} from 'ks-common-sc/src/libraries/KSRoles.sol';
-
 /// @title UniswapV4FFHook
 /// @notice Uniswap V4 variant of the FFHook
 contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
@@ -47,7 +45,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
   /// @inheritdoc BaseHook
   function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
     return Hooks.Permissions({
-      beforeInitialize: false,
+      beforeInitialize: true,
       afterInitialize: false,
       beforeAddLiquidity: false,
       afterAddLiquidity: true,
@@ -64,21 +62,21 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     });
   }
 
-  /// @inheritdoc IFFHookAdmin
-  function claimProtocolEG(address[] calldata tokens, uint256[] calldata amounts)
-    public
-    onlyRole(KSRoles.OPERATOR_ROLE)
-  {
-    require(tokens.length == amounts.length, MismatchedArrayLengths());
-
-    poolManager.unlock(msg.data[4:]);
-  }
-
   /// @inheritdoc IUnlockCallback
   function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {
-    _claimProtocolEG(data);
+    _burnAndTakeEGs(data, egRecipient);
 
     return '';
+  }
+
+  /// @notice Stop the pool from being initialized if the hook is paused
+  function _beforeInitialize(address, PoolKey calldata, uint160)
+    internal
+    override
+    whenNotPaused
+    returns (bytes4)
+  {
+    return this.beforeInitialize.selector;
   }
 
   function _afterAddLiquidity(
@@ -89,6 +87,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     BalanceDelta, /* feesAccrued **/
     bytes calldata /* hookData **/
   ) internal override returns (bytes4, BalanceDelta) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
     if (paused()) {
       return (this.afterAddLiquidity.selector, BalanceDelta.wrap(0));
     }
@@ -115,6 +114,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     BalanceDelta, /* feesAccrued **/
     bytes calldata /* hookData **/
   ) internal override returns (bytes4, BalanceDelta) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
     if (paused()) {
       return (this.afterRemoveLiquidity.selector, BalanceDelta.wrap(0));
     }
@@ -139,9 +139,12 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     SwapParams calldata params,
     bytes calldata hookData
   ) internal override whenNotPaused returns (bytes4, BeforeSwapDelta, uint24) {
-    _beforeSwap(
-      sender, PoolId.unwrap(key.toId()), params.zeroForOne, params.amountSpecified, hookData
-    );
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
+    if (!paused()) {
+      _beforeSwap(
+        sender, PoolId.unwrap(key.toId()), params.zeroForOne, params.amountSpecified, hookData
+      );
+    }
 
     return (this.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
   }
@@ -153,6 +156,11 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     BalanceDelta delta,
     bytes calldata hookData
   ) internal override returns (bytes4, int128) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
+    if (paused()) {
+      return (this.afterSwap.selector, 0);
+    }
+
     address tokenOut = Currency.unwrap(params.zeroForOne ? key.currency1 : key.currency0);
 
     uint256 totalEGAmount = _afterSwap(
@@ -168,6 +176,11 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
   }
 
   /// @inheritdoc FFHookAccounting
+  function _lockOrUnlock(bytes memory data) internal override {
+    poolManager.unlock(data);
+  }
+
+  /// @inheritdoc FFHookAccounting
   function _burn(address token, uint256 amount) internal override {
     poolManager.burn(address(this), uint256(uint160(token)), amount);
   }
@@ -180,6 +193,11 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
   /// @inheritdoc FFHookAccounting
   function _take(address token, address recipient, uint256 amount) internal override {
     poolManager.take(Currency.wrap(token), recipient, amount);
+  }
+
+  /// @inheritdoc FFHookAccounting
+  function _getTotalEGUnclaimed(address token) internal view override returns (uint256) {
+    return poolManager.balanceOf(address(this), uint256(uint160(token)));
   }
 
   /// @inheritdoc FFHookStateView

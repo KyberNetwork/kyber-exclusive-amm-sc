@@ -70,27 +70,37 @@ abstract contract FFHookAdmin is
     emit UpdateProtocolEGFee(poolId, oldFee, newFee);
   }
 
-  /// @notice Internal logic for `claimProtocolEG`
-  function _claimProtocolEG(bytes calldata data) internal {
-    (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
-    address _egRecipient = egRecipient;
-
+  /// @inheritdoc IFFHookAdmin
+  function claimProtocolEGs(address[] memory tokens, uint256[] memory amounts)
+    external
+    onlyRole(KSRoles.OPERATOR_ROLE)
+  {
     for (uint256 i = 0; i < tokens.length; i++) {
-      address token = tokens[i];
-
-      uint256 amount = amounts[i];
-      if (amount == 0) {
-        amount = protocolEGUnclaimed[token];
+      if (amounts[i] == 0) {
+        amounts[i] = protocolEGUnclaimed[tokens[i]];
       }
+      protocolEGUnclaimed[tokens[i]] -= amounts[i];
+    }
 
-      if (amount > 0) {
-        amounts[i] = amount;
-        protocolEGUnclaimed[token] -= amount;
-        _burn(token, amount);
-        _take(token, _egRecipient, amount);
+    _lockOrUnlock(abi.encode(tokens, amounts));
+
+    emit ClaimProtocolEGs(egRecipient, tokens, amounts);
+  }
+
+  /// @inheritdoc IFFHookAdmin
+  function rescueEGs(address[] memory tokens, uint256[] memory amounts)
+    external
+    onlyRole(DEFAULT_ADMIN_ROLE)
+    whenPaused
+  {
+    for (uint256 i = 0; i < tokens.length; i++) {
+      if (amounts[i] == 0) {
+        amounts[i] = _getTotalEGUnclaimed(tokens[i]);
       }
     }
 
-    emit ClaimProtocolEG(_egRecipient, tokens, amounts);
+    _lockOrUnlock(abi.encode(tokens, amounts));
+
+    emit RescueEGs(egRecipient, tokens, amounts);
   }
 }

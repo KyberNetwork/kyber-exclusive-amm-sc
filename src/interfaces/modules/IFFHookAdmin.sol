@@ -19,7 +19,10 @@ interface IFFHookAdmin {
   event UpdateProtocolEGFee(bytes32 indexed poolId, uint24 oldFee, uint24 newFee);
 
   /// @notice Emitted when some of protocol's shares of EG are claimed
-  event ClaimProtocolEG(address indexed egRecipient, address[] tokens, uint256[] amounts);
+  event ClaimProtocolEGs(address indexed egRecipient, address[] tokens, uint256[] amounts);
+
+  /// @notice Emitted when some of EGs are rescued
+  event RescueEGs(address indexed egRecipient, address[] tokens, uint256[] amounts);
 
   /**
    * @notice Called by the current admin to update the quote signer
@@ -41,9 +44,17 @@ interface IFFHookAdmin {
   function updateProtocolEGFee(bytes32 poolId, uint24 newFee) external;
 
   /**
-   * @notice Called by whoever has the `CLAIM_ROLE` to claim some of protocol's EG fees
+   * @notice Called by whoever has the `OPERATOR_ROLE` to claim some of protocol's EG fees
    * @param tokens the addresses of the tokens to claim
    * @param amounts the amounts of the tokens to claim, set to 0 to claim all
    */
-  function claimProtocolEG(address[] calldata tokens, uint256[] calldata amounts) external;
+  function claimProtocolEGs(address[] memory tokens, uint256[] memory amounts) external;
+
+  /**
+   * @notice Called by the current admin to rescue some of EGs
+   * @notice Can only be called when the hook is paused
+   * @param tokens the addresses of the tokens to rescue
+   * @param amounts the amounts of the tokens to rescue, set to 0 to rescue all
+   */
+  function rescueEGs(address[] memory tokens, uint256[] memory amounts) external;
 }

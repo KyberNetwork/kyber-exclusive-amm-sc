@@ -20,8 +20,6 @@ import {CLPoolParametersHelper} from
   'pancakeswap/infinity-core/src/pool-cl/libraries/CLPoolParametersHelper.sol';
 import {CLPosition} from 'pancakeswap/infinity-core/src/pool-cl/libraries/CLPosition.sol';
 
-import {KSRoles} from 'ks-common-sc/src/libraries/KSRoles.sol';
-
 /// @title PancakeswapInfinityFFHook
 /// @notice Pancakeswap Infinity variant of the FFHook
 contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
@@ -50,7 +48,7 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
   function getHooksRegistrationBitmap() external pure returns (uint16) {
     return _hooksRegistrationBitmapFrom(
       Permissions({
-        beforeInitialize: false,
+        beforeInitialize: true,
         afterInitialize: false,
         beforeAddLiquidity: false,
         afterAddLiquidity: true,
@@ -68,21 +66,21 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     );
   }
 
-  /// @inheritdoc IFFHookAdmin
-  function claimProtocolEG(address[] calldata tokens, uint256[] calldata amounts)
-    public
-    onlyRole(KSRoles.OPERATOR_ROLE)
-  {
-    require(tokens.length == amounts.length, MismatchedArrayLengths());
-
-    vault.lock(msg.data[4:]);
-  }
-
   /// @inheritdoc ILockCallback
   function lockAcquired(bytes calldata data) external vaultOnly returns (bytes memory) {
-    _claimProtocolEG(data);
+    _burnAndTakeEGs(data, egRecipient);
 
     return '';
+  }
+
+  /// @notice Stop the pool from being initialized if the hook is paused
+  function _beforeInitialize(address, PoolKey calldata, uint160)
+    internal
+    override
+    whenNotPaused
+    returns (bytes4)
+  {
+    return this.beforeInitialize.selector;
   }
 
   function _afterAddLiquidity(
@@ -93,6 +91,7 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     BalanceDelta, /* feesAccrued **/
     bytes calldata /* hookData **/
   ) internal override returns (bytes4, BalanceDelta) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
     if (paused()) {
       return (this.afterAddLiquidity.selector, BalanceDelta.wrap(0));
     }
@@ -119,6 +118,7 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     BalanceDelta, /* feesAccrued **/
     bytes calldata /* hookData **/
   ) internal override returns (bytes4, BalanceDelta) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
     if (paused()) {
       return (this.afterRemoveLiquidity.selector, BalanceDelta.wrap(0));
     }
@@ -142,10 +142,13 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     PoolKey calldata key,
     ICLPoolManager.SwapParams calldata params,
     bytes calldata hookData
-  ) internal override whenNotPaused returns (bytes4, BeforeSwapDelta, uint24) {
-    _beforeSwap(
-      sender, PoolId.unwrap(key.toId()), params.zeroForOne, params.amountSpecified, hookData
-    );
+  ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
+    if (!paused()) {
+      _beforeSwap(
+        sender, PoolId.unwrap(key.toId()), params.zeroForOne, params.amountSpecified, hookData
+      );
+    }
 
     return (this.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
   }
@@ -157,6 +160,11 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     BalanceDelta delta,
     bytes calldata hookData
   ) internal override returns (bytes4, int128) {
+    // make sure that if the hook is paused, all the pools will be have like a normal pool
+    if (paused()) {
+      return (this.afterSwap.selector, 0);
+    }
+
     int24 tickSpacing = CLPoolParametersHelper.getTickSpacing(key.parameters);
     address tokenOut = Currency.unwrap(params.zeroForOne ? key.currency1 : key.currency0);
 
@@ -173,6 +181,11 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
   }
 
   /// @inheritdoc FFHookAccounting
+  function _lockOrUnlock(bytes memory data) internal override {
+    vault.lock(data);
+  }
+
+  /// @inheritdoc FFHookAccounting
   function _burn(address token, uint256 amount) internal override {
     vault.burn(address(this), Currency.wrap(token), amount);
   }
@@ -185,6 +198,11 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
   /// @inheritdoc FFHookAccounting
   function _take(address token, address recipient, uint256 amount) internal override {
     vault.take(Currency.wrap(token), recipient, amount);
+  }
+
+  /// @inheritdoc FFHookAccounting
+  function _getTotalEGUnclaimed(address token) internal view override returns (uint256) {
+    return vault.balanceOf(address(this), Currency.wrap(token));
   }
 
   /// @inheritdoc FFHookStateView
