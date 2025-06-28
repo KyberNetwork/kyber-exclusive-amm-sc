@@ -33,9 +33,16 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
     address initialQuoteSigner,
     address initialEgRecipient,
     address[] memory initialOperators,
+    address[] memory initialGuardians,
     ICLPoolManager _poolManager
   )
-    FFHookAdmin(initialAdmin, initialQuoteSigner, initialEgRecipient, initialOperators)
+    FFHookAdmin(
+      initialAdmin,
+      initialQuoteSigner,
+      initialEgRecipient,
+      initialOperators,
+      initialGuardians
+    )
     CLBaseHook(_poolManager)
   {}
 

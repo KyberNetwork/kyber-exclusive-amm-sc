@@ -23,11 +23,13 @@ abstract contract FFHookAdmin is
     address initialAdmin,
     address initialQuoteSigner,
     address initialEgRecipient,
-    address[] memory initialOperators
+    address[] memory initialOperators,
+    address[] memory initialGuardians
   ) Management(initialAdmin) {
     _updateQuoteSigner(initialQuoteSigner);
     _updateEGRecipient(initialEgRecipient);
     _batchGrantRole(KSRoles.OPERATOR_ROLE, initialOperators);
+    _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
   }
 
   /// @inheritdoc IFFHookAdmin
