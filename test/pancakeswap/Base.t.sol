@@ -3,8 +3,6 @@ pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
 
-import 'src/PancakeSwapInfinityFFHook.sol';
-
 import 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
 import 'pancakeswap/infinity-core/src/types/PoolKey.sol';
 
@@ -43,6 +41,8 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
     tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
+
+    vm.label(address(hook), 'FFHook');
     vm.label(tokens[0], 'Token0');
     vm.label(tokens[1], 'Token1');
   }
@@ -65,15 +65,25 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
   function deployFreshHook() internal {
     hook = IFFHook(
       address(
-        new PancakeSwapInfinityFFHook(
-          admin,
-          quoteSigner,
-          egRecipient,
-          newAddressArray(operator),
-          newAddressArray(guardian),
-          manager
+        uint160(
+          HOOKS_BEFORE_INITIALIZE_OFFSET | HOOKS_AFTER_ADD_LIQUIDITY_OFFSET
+            | HOOKS_AFTER_REMOVE_LIQUIDITY_OFFSET | HOOKS_BEFORE_SWAP_OFFSET | HOOKS_AFTER_SWAP_OFFSET
+            | HOOKS_AFTER_SWAP_RETURNS_DELTA_OFFSET | HOOKS_AFTER_ADD_LIQUIDIY_RETURNS_DELTA_OFFSET
+            | HOOKS_AFTER_REMOVE_LIQUIDIY_RETURNS_DELTA_OFFSET
         )
       )
+    );
+    deployCodeTo(
+      'PancakeSwapInfinityFFHook.sol',
+      abi.encode(
+        admin,
+        quoteSigner,
+        egRecipient,
+        newAddressArray(operator),
+        newAddressArray(guardian),
+        manager
+      ),
+      address(hook)
     );
   }
 

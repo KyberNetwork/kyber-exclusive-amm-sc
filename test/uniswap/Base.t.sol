@@ -34,6 +34,8 @@ contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
     tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
+
+    vm.label(address(hook), 'FFHook');
     vm.label(tokens[0], 'Token0');
     vm.label(tokens[1], 'Token1');
   }
