@@ -21,7 +21,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
       boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
       swapConfig.nonce = i + 1;
 
-      uint256 totalEGAmount = swapWithBothPools(swapConfig, true, false);
+      uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
       uint256 protocolEGAmount = totalEGAmount * poolConfig.protocolEGFee / MathExt.PIPS_DENOMINATOR;
 
       protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
@@ -33,6 +33,29 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
     hook.claimProtocolEGs(tokens, new uint256[](2));
   }
 
+  /// forge-config: default.fuzz.runs = 20
+  function test_fuzz_pancakeswap_multiple_addLiquidity_and_swap_pausedHook_succeed(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
+    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
+  ) public {
+    initPools(poolConfig);
+
+    vm.prank(guardian);
+    Management(address(hook)).pause();
+
+    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
+      AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
+      SwapConfig memory swapConfig = swapConfigs[i];
+
+      addLiquidity(addLiquidityConfig);
+      boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
+      swapConfig.nonce = i + 1;
+
+      swapBothPools_pausedHook(swapConfig);
+    }
+  }
+
   //   function test_pancakeswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
   //     initPools(config.poolConfig);
 
@@ -41,7 +64,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
   //       addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
   //       config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
-  //       swapWithBothPools(
+  //       swapBothPools(
   //         config.addLiquidityAndSwapConfigs[i].swapConfig,
   //         (config.needClaimFlags >> i & 1) == 1,
   //         false,
@@ -194,9 +217,9 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     addLiquidity(config.addLiquidityConfig);
   //     config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
-  //     swapWithBothPools(config.swapConfig, false, false, false);
+  //     swapBothPools(config.swapConfig, false, false, false);
 
-  //     swapWithBothPools(config.swapConfig, false, false, true);
+  //     swapBothPools(config.swapConfig, false, false, true);
   //   }
 
   //   /// forge-config: default.fuzz.runs = 20
@@ -207,8 +230,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     addLiquidity(config.addLiquidityConfig);
   //     config.swapConfig.nonce = 0;
 
-  //     swapWithBothPools(config.swapConfig, false, false, false);
+  //     swapBothPools(config.swapConfig, false, false, false);
 
-  //     swapWithBothPools(config.swapConfig, false, false, false);
+  //     swapBothPools(config.swapConfig, false, false, false);
   //   }
 }

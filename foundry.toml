@@ -5,12 +5,14 @@ via_ir = true
 ffi = true
 fs_permissions = [
     { access = 'read', path = './'},
+    { access = 'read', path = './out' },
     { access = 'read-write', path = './script/config' },
     { access = 'read-write', path = './snapshots' }
 ]
 verbosity = 3
 dynamic_test_linking = true
 gas_limit = "18446744073709551615"
+unchecked_cheatcode_artifacts = true
 
 [fmt]
 line_length = 100

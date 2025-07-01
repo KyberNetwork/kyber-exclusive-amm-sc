@@ -24,12 +24,20 @@ abstract contract FFHookAdmin is
     address initialQuoteSigner,
     address initialEgRecipient,
     address[] memory initialOperators,
-    address[] memory initialGuardians
+    address[] memory initialGuardians,
+    address[] memory initialRescuers
   ) Management(initialAdmin) {
     _updateQuoteSigner(initialQuoteSigner);
     _updateEGRecipient(initialEgRecipient);
+
+    _grantRole(KSRoles.OPERATOR_ROLE, initialAdmin);
     _batchGrantRole(KSRoles.OPERATOR_ROLE, initialOperators);
+
+    _grantRole(KSRoles.GUARDIAN_ROLE, initialAdmin);
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
+
+    _grantRole(KSRoles.RESCUER_ROLE, initialAdmin);
+    _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
   }
 
   /// @inheritdoc IFFHookAdmin
@@ -90,7 +98,7 @@ abstract contract FFHookAdmin is
   function rescueEGs(address[] memory tokens, uint256[] memory amounts)
     external
     whenPaused
-    onlyRole(DEFAULT_ADMIN_ROLE)
+    onlyRole(KSRoles.RESCUER_ROLE)
     checkLengths(tokens.length, amounts.length)
   {
     for (uint256 i = 0; i < tokens.length; i++) {
@@ -104,6 +112,7 @@ abstract contract FFHookAdmin is
     emit RescueEGs(egRecipient, tokens, amounts);
   }
 
+  /// @notice Disallow unpausing the hook
   function _unpause() internal override {
     revert UnpauseDisabled();
   }

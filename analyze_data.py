@@ -148,5 +148,5 @@ def analyze_swap_data(file_path, remove_outliers=True):
 
 if __name__ == "__main__":
     # Analyze the swap data with outliers removed for cleaner visualization
-    file_path = "snapshots/uniswap/swapWithBothPools.csv"
+    file_path = "snapshots/uniswap/swapBothPools.csv"
     model, data, r2_score = analyze_swap_data(file_path, remove_outliers=False)

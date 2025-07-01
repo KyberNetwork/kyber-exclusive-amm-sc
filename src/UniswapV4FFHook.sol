@@ -30,6 +30,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     address initialEgRecipient,
     address[] memory initialOperators,
     address[] memory initialGuardians,
+    address[] memory initialRescuers,
     IPoolManager _poolManager
   )
     FFHookAdmin(
@@ -37,7 +38,8 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
       initialQuoteSigner,
       initialEgRecipient,
       initialOperators,
-      initialGuardians
+      initialGuardians,
+      initialRescuers
     )
     BaseHook(_poolManager)
   {}

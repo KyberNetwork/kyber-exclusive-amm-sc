@@ -47,14 +47,14 @@ interface IFFHookAdmin {
   function updateProtocolEGFee(bytes32 poolId, uint24 newFee) external;
 
   /**
-   * @notice Called by whoever has the `OPERATOR_ROLE` to claim some of protocol's EG fees
+   * @notice Called by the operators to claim some of protocol's EG fees
    * @param tokens the addresses of the tokens to claim
    * @param amounts the amounts of the tokens to claim, set to 0 to claim all
    */
   function claimProtocolEGs(address[] memory tokens, uint256[] memory amounts) external;
 
   /**
-   * @notice Called by the current admin to rescue some of EGs
+   * @notice Called by the rescuers to rescue some of EGs
    * @notice Can only be called when the hook is paused
    * @param tokens the addresses of the tokens to rescue
    * @param amounts the amounts of the tokens to rescue, set to 0 to rescue all

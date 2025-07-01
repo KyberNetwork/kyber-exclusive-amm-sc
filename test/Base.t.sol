@@ -8,6 +8,14 @@ import 'src/interfaces/IFFHook.sol';
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import {FixedPoint128, MathExt} from 'src/libraries/MathExt.sol';
 
+import 'ks-common-sc/src/base/Management.sol';
+import 'ks-common-sc/src/interfaces/ICommon.sol';
+import {IAccessControl} from 'openzeppelin-contracts/contracts/access/IAccessControl.sol';
+
+interface IFFHookHarness is IFFHook {
+  function updateProtocolEGUnclaimed(address token, uint256 amount) external;
+}
+
 abstract contract BaseHookTest is Test {
   using MathExt for *;
 
@@ -50,6 +58,7 @@ abstract contract BaseHookTest is Test {
   address egRecipient;
   address operator;
   address guardian;
+  address rescuer;
 
   address[] actors;
 
@@ -61,8 +70,9 @@ abstract contract BaseHookTest is Test {
     egRecipient = makeAddr('egRecipient');
     operator = makeAddr('operator');
     guardian = makeAddr('guardian');
+    rescuer = makeAddr('rescuer');
 
-    actors = [admin, operator, quoteSigner, egRecipient, guardian, makeAddr('anyone')];
+    actors = [admin, operator, quoteSigner, egRecipient, guardian, rescuer, makeAddr('anyone')];
   }
 
   function boundPoolConfig(PoolConfig memory poolConfig) internal pure returns (PoolConfig memory) {

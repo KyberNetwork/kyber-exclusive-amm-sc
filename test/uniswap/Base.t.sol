@@ -31,6 +31,8 @@ contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
     deployMintAndApprove2Currencies();
     deployFreshHook();
 
+    deal(address(this), 2 ** 255);
+
     tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
@@ -52,13 +54,14 @@ contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
       )
     );
     deployCodeTo(
-      'UniswapV4FFHook.sol',
+      'UniswapV4FFHookHarness',
       abi.encode(
         admin,
         quoteSigner,
         egRecipient,
         newAddressArray(operator),
         newAddressArray(guardian),
+        newAddressArray(rescuer),
         manager
       ),
       address(hook)
@@ -104,7 +107,7 @@ contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
     }
   }
 
-  function swapWithBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
+  function swapBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
     internal
     returns (uint256 totalEGAmount)
   {
@@ -165,12 +168,35 @@ contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
     }
 
     // vm.writeLine(
-    //   'snapshots/uniswap/swapWithBothPools.csv',
+    //   'snapshots/uniswap/swapBothPools.csv',
     //   string.concat(vm.toString(gasWithoutHook), ',', vm.toString(gasWithHook))
     // );
   }
 
-  function swapWithHookOnly(SwapConfig memory swapConfig) internal {
+  function swapBothPools_pausedHook(SwapConfig memory swapConfig) internal {
+    SwapParams memory params = SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
+
+    BalanceDelta deltaWithoutHook;
+    try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
+      deltaWithoutHook = delta;
+    } catch (bytes memory reason) {
+      assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
+      return;
+    }
+
+    BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, '');
+    assertEq(
+      BalanceDelta.unwrap(deltaWithHook),
+      BalanceDelta.unwrap(deltaWithoutHook),
+      'swap with paused hook should be the same as swap without hook'
+    );
+  }
+
+  function swapWithFFHook(SwapConfig memory swapConfig) internal {
     SwapParams memory params = SwapParams({
       zeroForOne: swapConfig.zeroForOne,
       amountSpecified: swapConfig.amountSpecified,

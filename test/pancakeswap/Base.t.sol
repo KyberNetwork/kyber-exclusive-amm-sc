@@ -81,6 +81,7 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
         egRecipient,
         newAddressArray(operator),
         newAddressArray(guardian),
+        newAddressArray(rescuer),
         manager
       ),
       address(hook)
@@ -140,7 +141,7 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
     }
   }
 
-  function swapWithBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
+  function swapBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
     internal
     returns (uint256 totalEGAmount)
   {
@@ -201,9 +202,32 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
     }
 
     // vm.writeLine(
-    //   'snapshots/pancakeswap/swapWithBothPools.csv',
+    //   'snapshots/pancakeswap/swapBothPools.csv',
     //   string.concat(vm.toString(gasWithoutHook), ',', vm.toString(gasWithHook))
     // );
+  }
+
+  function swapBothPools_pausedHook(SwapConfig memory swapConfig) internal {
+    ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
+
+    BalanceDelta deltaWithoutHook;
+    try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
+      deltaWithoutHook = delta;
+    } catch (bytes memory reason) {
+      assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
+      return;
+    }
+
+    BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, '');
+    assertEq(
+      BalanceDelta.unwrap(deltaWithHook),
+      BalanceDelta.unwrap(deltaWithoutHook),
+      'swap with paused hook should be the same as swap without hook'
+    );
   }
 
   function swapWithHookOnly(SwapConfig memory swapConfig) internal {
