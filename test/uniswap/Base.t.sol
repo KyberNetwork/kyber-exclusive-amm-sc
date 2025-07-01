@@ -3,23 +3,21 @@ pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
 
-import 'src/UniswapV4KEMHook.sol';
-import 'src/base/BaseKEMHook.sol';
+import 'uniswap/v4-core/src/types/PoolKey.sol';
 
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'uniswap/v4-core/src/libraries/CustomRevert.sol';
+import 'uniswap/v4-core/src/libraries/FixedPoint128.sol';
 
 import 'uniswap/v4-core/src/test/Fuzzers.sol';
-
-import 'uniswap/v4-core/src/types/PoolKey.sol';
 import 'uniswap/v4-core/test/utils/Deployers.sol';
 
-contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
+contract UniswapHookBaseTest is BaseHookTest, Deployers, Fuzzers {
   using StateLibrary for IPoolManager;
 
   PoolKey keyWithoutHook;
   PoolId idWithoutHook;
   PoolKey keyWithHook;
+  PoolId idWithHook;
 
   PoolSwapTest.TestSettings testSettings =
     PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
@@ -36,41 +34,57 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
+    vm.label(tokens[0], 'Token0');
+    vm.label(tokens[1], 'Token1');
   }
 
   function deployFreshHook() internal {
-    hook = IKEMHook(
+    hook = IFFHook(
       address(
         uint160(
-          Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+          Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG
+            | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG
         )
       )
     );
     deployCodeTo(
-      'UniswapV4KEMHook.sol',
-      abi.encode(manager, owner, newAddressesLength1(operator), quoteSigner, egRecipient),
+      'UniswapV4FFHook.sol',
+      abi.encode(
+        admin,
+        quoteSigner,
+        egRecipient,
+        newAddressArray(operator),
+        newAddressArray(guardian),
+        manager
+      ),
       address(hook)
     );
   }
 
   function initPools(PoolConfig memory poolConfig) internal {
-    poolConfig.fee = boundFee(poolConfig.fee);
-    poolConfig.tickSpacing = boundTickSpacing(poolConfig.tickSpacing);
+    boundPoolConfig(poolConfig);
     poolConfig.sqrtPriceX96 =
-      createRandomSqrtPriceX96(poolConfig.tickSpacing, poolConfig.sqrtPriceX96seed);
+      createRandomSqrtPriceX96(poolConfig.tickSpacing, int256(uint256(poolConfig.sqrtPriceX96)));
 
     keyWithoutHook =
-      PoolKey(currency0, currency1, poolConfig.fee, poolConfig.tickSpacing, IHooks(address(0)));
+      PoolKey(currency0, currency1, poolConfig.lpFee, poolConfig.tickSpacing, IHooks(address(0)));
     idWithoutHook = keyWithoutHook.toId();
+
     keyWithHook =
-      PoolKey(currency0, currency1, poolConfig.fee, poolConfig.tickSpacing, IHooks(address(hook)));
+      PoolKey(currency0, currency1, poolConfig.lpFee, poolConfig.tickSpacing, IHooks(address(hook)));
+    idWithHook = keyWithHook.toId();
 
     manager.initialize(keyWithoutHook, poolConfig.sqrtPriceX96);
     manager.initialize(keyWithHook, poolConfig.sqrtPriceX96);
+
+    vm.prank(admin);
+    hook.updateProtocolEGFee(PoolId.unwrap(idWithHook), poolConfig.protocolEGFee);
   }
 
   function addLiquidity(AddLiquidityConfig memory addLiquidityConfig) internal {
-    IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
+    ModifyLiquidityParams memory params = ModifyLiquidityParams({
       tickLower: addLiquidityConfig.lowerTick,
       tickUpper: addLiquidityConfig.upperTick,
       liquidityDelta: addLiquidityConfig.liquidityDelta,
@@ -78,7 +92,7 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     });
     (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
     params = createFuzzyLiquidityParamsWithTightBound(
-      keyWithoutHook, params, sqrtPriceX96, MULTIPLE_TEST_CONFIG_LENGTH
+      keyWithoutHook, params, sqrtPriceX96, NUM_POSITIONS_AND_SWAPS
     );
 
     try modifyLiquidityNoChecks.modifyLiquidity(keyWithoutHook, params, '') {
@@ -88,93 +102,80 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     }
   }
 
-  function boundSwapConfig(SwapConfig memory swapConfig) internal view returns (SwapConfig memory) {
-    (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
-    return boundSwapConfig(swapConfig, sqrtPriceX96);
-  }
-
-  function swapWithBothPools(
-    SwapConfig memory swapConfig,
-    bool needClaim,
-    bool needExpectEmit,
-    bool needExpectRevert
-  ) internal returns (uint256 egAmount) {
-    boundSwapConfig(swapConfig);
-
-    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+  function swapWithBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
+    internal
+    returns (uint256 totalEGAmount)
+  {
+    SwapParams memory params = SwapParams({
       zeroForOne: swapConfig.zeroForOne,
       amountSpecified: swapConfig.amountSpecified,
       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
     BalanceDelta deltaWithoutHook;
-    try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
-      deltaWithoutHook = delta;
-    } catch (bytes memory reason) {
-      assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
-      return 0;
+    uint256 gasWithoutHook;
+    {
+      uint256 gasLeft = gasleft();
+      try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
+        deltaWithoutHook = delta;
+      } catch (bytes memory reason) {
+        assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
+        return 0;
+      }
+      gasWithoutHook = gasLeft - gasleft();
     }
 
-    int128 amountIn;
-    int128 amountOutWithoutHook;
-    if (swapConfig.zeroForOne) {
-      amountIn = -deltaWithoutHook.amount0();
-      amountOutWithoutHook = deltaWithoutHook.amount1();
-    } else {
-      amountIn = -deltaWithoutHook.amount1();
-      amountOutWithoutHook = deltaWithoutHook.amount0();
-    }
+    swapConfig.inverseFairExchangeRate = boundInverseFairExchangeRate(
+      swapConfig.inverseFairExchangeRate,
+      BalanceDelta.unwrap(deltaWithoutHook),
+      swapConfig.zeroForOne
+    );
+    totalEGAmount = MathExt.calculateEGAmount(
+      BalanceDelta.unwrap(deltaWithoutHook),
+      swapConfig.zeroForOne,
+      swapConfig.inverseFairExchangeRate
+    );
 
-    boundExchangeRateDenom(swapConfig, amountIn, amountOutWithoutHook);
-
-    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory signature = sign(quoteSignerKey, getDigest(swapConfig));
     bytes memory hookData = getHookData(swapConfig, signature);
 
-    int256 maxAmountOut = amountIn * swapConfig.maxExchangeRate / swapConfig.exchangeRateDenom;
-    egAmount =
-      uint256(maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0));
-
-    if (needExpectEmit) {
+    if (toExpectEmit) {
       vm.expectEmit(true, true, true, true, address(hook));
-      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
+      emit IFFHookNonces.UseNonce(swapConfig.nonce);
     }
-    if (needExpectRevert) {
+    if (toExpectRevert) {
       vm.expectRevert(
         abi.encodeWithSelector(
           CustomRevert.WrappedError.selector,
           hook,
           IHooks.beforeSwap.selector,
-          abi.encodeWithSelector(IUnorderedNonce.NonceAlreadyUsed.selector, swapConfig.nonce),
+          abi.encodeWithSelector(IFFHookNonces.NonceAlreadyUsed.selector, swapConfig.nonce),
           abi.encodeWithSelector(Hooks.HookCallFailed.selector)
         )
       );
     }
 
-    BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, hookData);
-    int128 amountOutWithHook;
-    if (swapConfig.zeroForOne) {
-      amountOutWithHook = deltaWithHook.amount1();
-    } else {
-      amountOutWithHook = deltaWithHook.amount0();
+    uint256 gasWithHook;
+    {
+      uint256 gasLeft = gasleft();
+      swapRouter.swap(keyWithHook, params, testSettings, hookData);
+      gasWithHook = gasLeft - gasleft();
     }
 
-    if (needClaim) {
-      vm.prank(operator);
-      try hook.claimEGTokens(tokens, new uint256[](2)) {}
-      catch (bytes memory reason) {
-        assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
-      }
-    }
+    // vm.writeLine(
+    //   'snapshots/uniswap/swapWithBothPools.csv',
+    //   string.concat(vm.toString(gasWithoutHook), ',', vm.toString(gasWithHook))
+    // );
   }
 
   function swapWithHookOnly(SwapConfig memory swapConfig) internal {
-    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+    SwapParams memory params = SwapParams({
       zeroForOne: swapConfig.zeroForOne,
       amountSpecified: swapConfig.amountSpecified,
       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
-    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory signature = sign(quoteSignerKey, getDigest(swapConfig));
     bytes memory hookData = getHookData(swapConfig, signature);
 
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
@@ -184,29 +185,17 @@ contract UniswapHookBaseTest is BaseTest, Deployers, Fuzzers {
     return keccak256(
       abi.encode(
         swapRouter,
-        keyWithHook,
+        idWithHook,
         swapConfig.zeroForOne,
         swapConfig.maxAmountIn,
-        swapConfig.maxExchangeRate,
-        swapConfig.exchangeRateDenom,
+        swapConfig.inverseFairExchangeRate,
         swapConfig.nonce,
         swapConfig.expiryTime
       )
     );
   }
 
-  function getHookData(SwapConfig memory swapConfig, bytes memory signature)
-    internal
-    pure
-    returns (bytes memory)
-  {
-    return abi.encode(
-      swapConfig.maxAmountIn,
-      swapConfig.maxExchangeRate,
-      swapConfig.exchangeRateDenom,
-      swapConfig.nonce,
-      swapConfig.expiryTime,
-      signature
-    );
+  function getSlot0(bytes32 poolId) internal view override returns (uint160, int24, uint24, uint24) {
+    return manager.getSlot0(PoolId.wrap(poolId));
   }
 }

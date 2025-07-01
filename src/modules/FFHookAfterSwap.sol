@@ -42,7 +42,7 @@ abstract contract FFHookAfterSwap is
       tickSpacing: tickSpacing,
       zeroForOne: zeroForOne,
       delta: delta,
-      fairExchangeRate: hookData.fairExchangeRate(),
+      inverseFairExchangeRate: hookData.inverseFairExchangeRate(),
       sqrtPriceBeforeX96: slot0DataBefore.sqrtPriceX96(),
       tickBefore: slot0DataBefore.tick(),
       liquidityBefore: LIQUIDITY_BEFORE_SLOT.tloadUint128(),
@@ -55,11 +55,13 @@ abstract contract FFHookAfterSwap is
     uint256 protocolEGAmount;
     (totalEGAmount, protocolEGAmount) = pool.afterSwap(params, _getTickBitmap, _getTickLiquidity);
 
-    _mint(tokenOut, totalEGAmount);
+    if (totalEGAmount > 0) {
+      _mint(tokenOut, totalEGAmount);
+      
+      emit AbsorbEG(poolId, tokenOut, totalEGAmount);
+    }
     if (protocolEGAmount > 0) {
       protocolEGUnclaimed[tokenOut] += protocolEGAmount;
     }
-
-    emit AbsorbEG(poolId, tokenOut, totalEGAmount);
   }
 }

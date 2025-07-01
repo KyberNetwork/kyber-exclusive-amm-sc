@@ -165,8 +165,8 @@ library PoolExt {
     bool zeroForOne;
     // the delta of the swap
     int256 delta;
-    // the fair exchange rate
-    uint256 fairExchangeRate;
+    // the inverse fair exchange rate
+    uint256 inverseFairExchangeRate;
     // the price before the swap
     uint160 sqrtPriceBeforeX96;
     // the tick before the swap
@@ -203,15 +203,10 @@ library PoolExt {
     function(bytes32, int24) internal view returns (uint128, int128) getTickLiquidity
   ) internal returns (uint256 totalEGAmount, uint256 protocolEGAmount) {
     totalEGAmount =
-      MathExt.calculateEGAmount(params.zeroForOne, params.delta, params.fairExchangeRate);
+      MathExt.calculateEGAmount(params.delta, params.zeroForOne, params.inverseFairExchangeRate);
 
     /// @dev can't overflow
     protocolEGAmount = totalEGAmount.simpleMulDiv(params.protocolEGFee, MathExt.PIPS_DENOMINATOR);
-
-    uint256 lpEGAmount = totalEGAmount - protocolEGAmount;
-    if (lpEGAmount == 0) {
-      return (totalEGAmount, protocolEGAmount);
-    }
 
     SwapState memory swapState = SwapState({
       sqrtPriceX96: params.sqrtPriceAfterX96,
@@ -227,7 +222,7 @@ library PoolExt {
       params.poolId,
       params.tickSpacing,
       params.zeroForOne,
-      params.fairExchangeRate,
+      params.inverseFairExchangeRate,
       params.sqrtPriceAfterX96,
       swapState,
       getTickBitmap,
@@ -237,7 +232,7 @@ library PoolExt {
     updateTicks(
       self,
       params.zeroForOne,
-      lpEGAmount,
+      totalEGAmount - protocolEGAmount,
       swapState.numInitializedTicks,
       swapState.sumPositiveEGAmounts
     );
@@ -249,7 +244,7 @@ library PoolExt {
     bytes32 poolId,
     int24 tickSpacing,
     bool zeroForOne,
-    uint256 fairExchangeRate,
+    uint256 inverseFairExchangeRate,
     uint160 sqrtPriceAfterX96,
     SwapState memory swapState,
     function(bytes32, int16) view returns (uint256) getTickBitmap,
@@ -260,32 +255,45 @@ library PoolExt {
         poolId, swapState.tick, tickSpacing, zeroForOne, getTickBitmap
       );
 
+      // ensure that we do not overshoot the min/max tick
+      if (tickNext <= TickMath.MIN_TICK) {
+        tickNext = TickMath.MIN_TICK;
+      }
+      if (tickNext >= TickMath.MAX_TICK) {
+        tickNext = TickMath.MAX_TICK;
+      }
+
       // get the price for the next tick
       uint160 sqrtPriceNextX96 = TickMath.getSqrtPriceAtTick(tickNext);
       // limit the target price by the price after the swap
       uint160 sqrtPriceTargetX96 =
         SwapMath.getSqrtPriceTarget(zeroForOne, sqrtPriceNextX96, sqrtPriceAfterX96);
 
-      // calculate the swap amounts
-      (uint256 amountInPlusFee, uint256 amountOut) = MathExt.calculateSwapAmounts(
-        swapState.sqrtPriceX96,
-        sqrtPriceTargetX96,
-        swapState.liquidity,
-        zeroForOne,
-        swapState.swapFee
-      );
+      // if the positive EG amount is negative in a range
+      // we set it to type(uint256).max to avoid unnecessary further calculations
+      if (swapState.positiveEGAmount != type(uint256).max) {
+        // calculate the swap amounts
+        (uint256 amountInPlusFee, uint256 amountOut) = MathExt.calculateSwapAmounts(
+          swapState.sqrtPriceX96,
+          sqrtPriceTargetX96,
+          swapState.liquidity,
+          zeroForOne,
+          swapState.swapFee
+        );
 
-      /// @dev can't overflow
-      uint256 fairAmountOut = amountInPlusFee.simpleMulDiv(fairExchangeRate, FixedPoint128.Q128);
+        /// @dev can't overflow
+        uint256 fairAmountOut =
+          amountInPlusFee.simpleMulDiv(FixedPoint128.Q128, inverseFairExchangeRate);
 
-      // update the positive EG amount in the current range
-      if (swapState.positiveEGAmount + amountOut > fairAmountOut) {
-        unchecked {
-          swapState.positiveEGAmount += amountOut - fairAmountOut;
+        // update the positive EG amount in the current range
+        if (swapState.positiveEGAmount + amountOut > fairAmountOut) {
+          unchecked {
+            swapState.positiveEGAmount += amountOut - fairAmountOut;
+          }
+        } else {
+          // the positive EG amount is negative now, set it to type(uint256).max
+          swapState.positiveEGAmount = type(uint256).max;
         }
-      } else {
-        // from now on, the EG amount will always be below zero, so we can break
-        break;
       }
 
       // if we reached the next tick, i.e. finished the current range
@@ -297,12 +305,15 @@ library PoolExt {
         POSITIVE_EG_AMOUNTS_SLOT.offset(swapState.numInitializedTicks).tstore(
           swapState.positiveEGAmount
         );
-
         swapState.numInitializedTicks++;
-        // update the sum of the positive EG amounts
-        swapState.sumPositiveEGAmounts += swapState.positiveEGAmount;
-        // reset the positive EG amount for the next range
-        swapState.positiveEGAmount = 0;
+
+        // if the positive EG amount is valid
+        if (swapState.positiveEGAmount != type(uint256).max) {
+          // update the sum of the positive EG amounts
+          swapState.sumPositiveEGAmounts += swapState.positiveEGAmount;
+          // reset the positive EG amount for the next range
+          swapState.positiveEGAmount = 0;
+        }
       }
 
       // if we reached the end price, break
@@ -313,7 +324,7 @@ library PoolExt {
       // update the current tick and price
       unchecked {
         if (initialized) {
-          (, int128 liquidityNet) = getTickLiquidity(poolId, swapState.tick);
+          (, int128 liquidityNet) = getTickLiquidity(poolId, tickNext);
           swapState.liquidity =
             LiquidityMath.addDelta(swapState.liquidity, zeroForOne ? -liquidityNet : liquidityNet);
         }
@@ -340,17 +351,20 @@ library PoolExt {
         MathExt.unpackTickLiquidity(TICK_LIQUIDITY_PAIRS_SLOT.offset(index).tloadUint256());
       uint256 positiveEGAmount = POSITIVE_EG_AMOUNTS_SLOT.offset(index).tloadUint256();
 
-      // calculate the EG amount shared to the range
-      /// @dev can't overflow
-      uint256 rangeEGAmount = lpEGAmount.simpleMulDiv(positiveEGAmount, sumPositiveEGAmounts);
+      // only update the EG growth if the positive EG amount is valid
+      if (positiveEGAmount != type(uint256).max) {
+        // calculate the EG amount shared to the range
+        /// @dev can't overflow
+        uint256 rangeEGAmount = lpEGAmount.simpleMulDiv(positiveEGAmount, sumPositiveEGAmounts);
 
-      // add the EG amount to the global EG growth of the output token
-      /// @dev can't overflow
-      uint256 egPerLiquidity = rangeEGAmount.simpleMulDiv(FixedPoint128.Q128, liquidity);
-      if (zeroForOne) {
-        egGrowthGlobal1X128 += egPerLiquidity;
-      } else {
-        egGrowthGlobal0X128 += egPerLiquidity;
+        // add the EG amount to the global EG growth of the output token
+        /// @dev can't overflow
+        uint256 egPerLiquidity = rangeEGAmount.simpleMulDiv(FixedPoint128.Q128, liquidity);
+        if (zeroForOne) {
+          egGrowthGlobal1X128 += egPerLiquidity;
+        } else {
+          egGrowthGlobal0X128 += egPerLiquidity;
+        }
       }
 
       // run the tick transition

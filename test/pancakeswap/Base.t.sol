@@ -3,26 +3,29 @@ pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
 
-import 'src/PancakeSwapInfinityKEMHook.sol';
-import 'src/base/BaseKEMHook.sol';
+import 'src/PancakeSwapInfinityFFHook.sol';
+
+import 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
+import 'pancakeswap/infinity-core/src/types/PoolKey.sol';
 
 import 'pancakeswap/infinity-core/src/libraries/CustomRevert.sol';
-import 'pancakeswap/infinity-core/src/pool-cl/interfaces/ICLHooks.sol';
 import 'pancakeswap/infinity-core/src/pool-cl/libraries/CLPoolParametersHelper.sol';
+
 import 'pancakeswap/infinity-core/test/helpers/TokenFixture.sol';
-import 'pancakeswap/infinity-core/test/pool-cl/helpers/CLPoolManagerRouter.sol';
 import 'pancakeswap/infinity-core/test/pool-cl/helpers/Deployers.sol';
 import 'pancakeswap/infinity-core/test/pool-cl/helpers/Fuzzers.sol';
 
-contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
+contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzzers {
   using CLPoolParametersHelper for bytes32;
 
   IVault public vault;
   CLPoolManager public manager;
   CLPoolManagerRouter public swapRouter;
+
   PoolKey keyWithoutHook;
   PoolId idWithoutHook;
   PoolKey keyWithHook;
+  PoolId idWithHook;
 
   CLPoolManagerRouter.SwapTestSettings testSettings =
     CLPoolManagerRouter.SwapTestSettings({withdrawTokens: true, settleUsingTransfer: true});
@@ -40,6 +43,8 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     tokens = new address[](2);
     tokens[0] = Currency.unwrap(currency0);
     tokens[1] = Currency.unwrap(currency1);
+    vm.label(tokens[0], 'Token0');
+    vm.label(tokens[1], 'Token1');
   }
 
   function deployMintAndApprove2Currencies() internal {
@@ -58,41 +63,52 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
   }
 
   function deployFreshHook() internal {
-    hook = IKEMHook(
-      new PancakeSwapInfinityKEMHook(
-        manager, owner, newAddressesLength1(operator), quoteSigner, egRecipient
+    hook = IFFHook(
+      address(
+        new PancakeSwapInfinityFFHook(
+          admin,
+          quoteSigner,
+          egRecipient,
+          newAddressArray(operator),
+          newAddressArray(guardian),
+          manager
+        )
       )
     );
   }
 
   function initPools(PoolConfig memory poolConfig) internal {
-    poolConfig.fee = boundFee(poolConfig.fee);
-    poolConfig.tickSpacing = boundTickSpacing(poolConfig.tickSpacing);
+    boundPoolConfig(poolConfig);
     poolConfig.sqrtPriceX96 =
-      createRandomSqrtPriceX96(poolConfig.tickSpacing, poolConfig.sqrtPriceX96seed);
+      createRandomSqrtPriceX96(poolConfig.tickSpacing, int256(uint256(poolConfig.sqrtPriceX96)));
 
     keyWithoutHook = PoolKey(
       currency0,
       currency1,
       IHooks(address(0)),
       manager,
-      poolConfig.fee,
+      poolConfig.lpFee,
       bytes32(0).setTickSpacing(poolConfig.tickSpacing)
     );
     idWithoutHook = keyWithoutHook.toId();
+
     keyWithHook = PoolKey(
       currency0,
       currency1,
       IHooks(address(hook)),
       manager,
-      poolConfig.fee,
+      poolConfig.lpFee,
       bytes32(uint256(IHooks(address(hook)).getHooksRegistrationBitmap())).setTickSpacing(
         poolConfig.tickSpacing
       )
     );
+    idWithHook = keyWithHook.toId();
 
     manager.initialize(keyWithoutHook, poolConfig.sqrtPriceX96);
     manager.initialize(keyWithHook, poolConfig.sqrtPriceX96);
+
+    vm.prank(admin);
+    hook.updateProtocolEGFee(PoolId.unwrap(idWithHook), poolConfig.protocolEGFee);
   }
 
   function addLiquidity(AddLiquidityConfig memory addLiquidityConfig) internal {
@@ -104,7 +120,7 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     });
     (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
     params = createFuzzyLiquidityParamsWithTightBound(
-      keyWithoutHook, params, sqrtPriceX96, MULTIPLE_TEST_CONFIG_LENGTH
+      keyWithoutHook, params, sqrtPriceX96, NUM_POSITIONS_AND_SWAPS
     );
 
     try swapRouter.modifyPosition(keyWithoutHook, params, '') {
@@ -114,19 +130,10 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     }
   }
 
-  function boundSwapConfig(SwapConfig memory swapConfig) internal view returns (SwapConfig memory) {
-    (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
-    return boundSwapConfig(swapConfig, sqrtPriceX96);
-  }
-
-  function swapWithBothPools(
-    SwapConfig memory swapConfig,
-    bool needClaim,
-    bool needExpectEmit,
-    bool needExpectRevert
-  ) internal returns (uint256 egAmount) {
-    boundSwapConfig(swapConfig);
-
+  function swapWithBothPools(SwapConfig memory swapConfig, bool toExpectEmit, bool toExpectRevert)
+    internal
+    returns (uint256 totalEGAmount)
+  {
     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
       zeroForOne: swapConfig.zeroForOne,
       amountSpecified: swapConfig.amountSpecified,
@@ -134,63 +141,59 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     });
 
     BalanceDelta deltaWithoutHook;
-    try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
-      deltaWithoutHook = delta;
-    } catch (bytes memory reason) {
-      assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
-      return 0;
+    uint256 gasWithoutHook;
+    {
+      uint256 gasLeft = gasleft();
+      try swapRouter.swap(keyWithoutHook, params, testSettings, '') returns (BalanceDelta delta) {
+        deltaWithoutHook = delta;
+      } catch (bytes memory reason) {
+        assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
+        return 0;
+      }
+      gasWithoutHook = gasLeft - gasleft();
     }
 
-    int128 amountIn;
-    int128 amountOutWithoutHook;
-    if (swapConfig.zeroForOne) {
-      amountIn = -deltaWithoutHook.amount0();
-      amountOutWithoutHook = deltaWithoutHook.amount1();
-    } else {
-      amountIn = -deltaWithoutHook.amount1();
-      amountOutWithoutHook = deltaWithoutHook.amount0();
-    }
+    swapConfig.inverseFairExchangeRate = boundInverseFairExchangeRate(
+      swapConfig.inverseFairExchangeRate,
+      BalanceDelta.unwrap(deltaWithoutHook),
+      swapConfig.zeroForOne
+    );
+    totalEGAmount = MathExt.calculateEGAmount(
+      BalanceDelta.unwrap(deltaWithoutHook),
+      swapConfig.zeroForOne,
+      swapConfig.inverseFairExchangeRate
+    );
 
-    boundExchangeRateDenom(swapConfig, amountIn, amountOutWithoutHook);
-
-    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory signature = sign(quoteSignerKey, getDigest(swapConfig));
     bytes memory hookData = getHookData(swapConfig, signature);
 
-    int256 maxAmountOut = amountIn * swapConfig.maxExchangeRate / swapConfig.exchangeRateDenom;
-    egAmount =
-      uint256(maxAmountOut < amountOutWithoutHook ? amountOutWithoutHook - maxAmountOut : int256(0));
-
-    if (needExpectEmit) {
+    if (toExpectEmit) {
       vm.expectEmit(true, true, true, true, address(hook));
-      emit IUnorderedNonce.UseNonce(swapConfig.nonce);
+      emit IFFHookNonces.UseNonce(swapConfig.nonce);
     }
-    if (needExpectRevert) {
+    if (toExpectRevert) {
       vm.expectRevert(
         abi.encodeWithSelector(
           CustomRevert.WrappedError.selector,
           hook,
           ICLHooks.beforeSwap.selector,
-          abi.encodeWithSelector(IUnorderedNonce.NonceAlreadyUsed.selector, swapConfig.nonce),
+          abi.encodeWithSelector(IFFHookNonces.NonceAlreadyUsed.selector, swapConfig.nonce),
           abi.encodeWithSelector(Hooks.HookCallFailed.selector)
         )
       );
     }
 
-    BalanceDelta deltaWithHook = swapRouter.swap(keyWithHook, params, testSettings, hookData);
-    int128 amountOutWithHook;
-    if (swapConfig.zeroForOne) {
-      amountOutWithHook = deltaWithHook.amount1();
-    } else {
-      amountOutWithHook = deltaWithHook.amount0();
+    uint256 gasWithHook;
+    {
+      uint256 gasLeft = gasleft();
+      swapRouter.swap(keyWithHook, params, testSettings, hookData);
+      gasWithHook = gasLeft - gasleft();
     }
 
-    if (needClaim) {
-      vm.prank(operator);
-      try hook.claimEGTokens(tokens, new uint256[](2)) {}
-      catch (bytes memory reason) {
-        assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
-      }
-    }
+    // vm.writeLine(
+    //   'snapshots/pancakeswap/swapWithBothPools.csv',
+    //   string.concat(vm.toString(gasWithoutHook), ',', vm.toString(gasWithHook))
+    // );
   }
 
   function swapWithHookOnly(SwapConfig memory swapConfig) internal {
@@ -200,7 +203,7 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
     });
 
-    bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
+    bytes memory signature = sign(quoteSignerKey, getDigest(swapConfig));
     bytes memory hookData = getHookData(swapConfig, signature);
 
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
@@ -210,29 +213,17 @@ contract PancakeSwapHookBaseTest is BaseTest, Deployers, TokenFixture, Fuzzers {
     return keccak256(
       abi.encode(
         swapRouter,
-        keyWithHook,
+        idWithHook,
         swapConfig.zeroForOne,
         swapConfig.maxAmountIn,
-        swapConfig.maxExchangeRate,
-        swapConfig.exchangeRateDenom,
+        swapConfig.inverseFairExchangeRate,
         swapConfig.nonce,
         swapConfig.expiryTime
       )
     );
   }
 
-  function getHookData(SwapConfig memory swapConfig, bytes memory signature)
-    internal
-    pure
-    returns (bytes memory)
-  {
-    return abi.encode(
-      swapConfig.maxAmountIn,
-      swapConfig.maxExchangeRate,
-      swapConfig.exchangeRateDenom,
-      swapConfig.nonce,
-      swapConfig.expiryTime,
-      signature
-    );
+  function getSlot0(bytes32 poolId) internal view override returns (uint160, int24, uint24, uint24) {
+    return manager.getSlot0(PoolId.wrap(poolId));
   }
 }

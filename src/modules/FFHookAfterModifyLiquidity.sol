@@ -44,8 +44,12 @@ abstract contract FFHookAfterModifyLiquidity is FFHookStorage, FFHookStateView, 
 
     (uint256 egOwed0, uint256 egOwed1) = pool.afterModifyLiquidity(params);
 
-    _burn(token0, egOwed0);
-    _burn(token1, egOwed1);
+    if (egOwed0 != 0) {
+      _burn(token0, egOwed0);
+    }
+    if (egOwed1 != 0) {
+      _burn(token1, egOwed1);
+    }
 
     unchecked {
       // the hook delta is negative because we are releasing EG

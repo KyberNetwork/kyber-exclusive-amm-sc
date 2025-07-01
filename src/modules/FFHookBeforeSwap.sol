@@ -37,15 +37,11 @@ abstract contract FFHookBeforeSwap is
 
     (
       int256 maxAmountIn,
-      uint256 fairExchangeRate,
+      uint256 inverseFairExchangeRate,
       uint256 nonce,
       uint256 expiryTime,
       bytes memory signature
     ) = CalldataDecoderExt.decodeHookData(hookData);
-
-    if (fairExchangeRate > type(uint128).max) {
-      revert TooLargeFairExchangeRate(fairExchangeRate);
-    }
 
     if (block.timestamp > expiryTime) {
       revert ExpiredSignature(expiryTime, block.timestamp);
@@ -60,7 +56,9 @@ abstract contract FFHookBeforeSwap is
     _useUnorderedNonce(nonce);
 
     bytes32 hash = keccak256(
-      abi.encode(sender, poolId, zeroForOne, maxAmountIn, fairExchangeRate, nonce, expiryTime)
+      abi.encode(
+        sender, poolId, zeroForOne, maxAmountIn, inverseFairExchangeRate, nonce, expiryTime
+      )
     );
     if (!SignatureChecker.isValidSignatureNow(quoteSigner, hash, signature)) {
       revert InvalidSignature();

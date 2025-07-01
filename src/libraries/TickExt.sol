@@ -34,31 +34,19 @@ library TickExt {
     Info storage lower = self[tickLower];
     Info storage upper = self[tickUpper];
 
-    // calculate EG growth below
-    uint256 egGrowthBelow0X128;
-    uint256 egGrowthBelow1X128;
     unchecked {
-      if (tickCurrent >= tickLower) {
-        egGrowthBelow0X128 = lower.egGrowthOutside0X128;
-        egGrowthBelow1X128 = lower.egGrowthOutside1X128;
+      if (tickCurrent < tickLower) {
+        egGrowthInside0X128 = lower.egGrowthOutside0X128 - upper.egGrowthOutside0X128;
+        egGrowthInside1X128 = lower.egGrowthOutside1X128 - upper.egGrowthOutside1X128;
+      } else if (tickCurrent >= tickUpper) {
+        egGrowthInside0X128 = upper.egGrowthOutside0X128 - lower.egGrowthOutside0X128;
+        egGrowthInside1X128 = upper.egGrowthOutside1X128 - lower.egGrowthOutside1X128;
       } else {
-        egGrowthBelow0X128 = egGrowthGlobal0X128 - lower.egGrowthOutside0X128;
-        egGrowthBelow1X128 = egGrowthGlobal1X128 - lower.egGrowthOutside1X128;
+        egGrowthInside0X128 =
+          egGrowthGlobal0X128 - lower.egGrowthOutside0X128 - upper.egGrowthOutside0X128;
+        egGrowthInside1X128 =
+          egGrowthGlobal1X128 - lower.egGrowthOutside1X128 - upper.egGrowthOutside1X128;
       }
-
-      // calculate EG growth above
-      uint256 egGrowthAbove0X128;
-      uint256 egGrowthAbove1X128;
-      if (tickCurrent < tickUpper) {
-        egGrowthAbove0X128 = upper.egGrowthOutside0X128;
-        egGrowthAbove1X128 = upper.egGrowthOutside1X128;
-      } else {
-        egGrowthAbove0X128 = egGrowthGlobal0X128 - upper.egGrowthOutside0X128;
-        egGrowthAbove1X128 = egGrowthGlobal1X128 - upper.egGrowthOutside1X128;
-      }
-
-      egGrowthInside0X128 = egGrowthGlobal0X128 - egGrowthBelow0X128 - egGrowthAbove0X128;
-      egGrowthInside1X128 = egGrowthGlobal1X128 - egGrowthBelow1X128 - egGrowthAbove1X128;
     }
   }
 

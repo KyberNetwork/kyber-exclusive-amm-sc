@@ -7,9 +7,6 @@ interface IFFHookBeforeSwap {
   /// @notice Thrown when trying to swap with exact output
   error ExactOutDisabled();
 
-  /// @notice Thrown when the fair exchange rate is too large
-  error TooLargeFairExchangeRate(uint256 rate);
-
   /**
    * @notice Thrown when the signature is expired
    * @param expiryTime the expiry time

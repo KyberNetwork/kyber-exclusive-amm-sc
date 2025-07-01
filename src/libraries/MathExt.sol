@@ -14,7 +14,8 @@ library MathExt {
   /// @notice The denominator for the protocol fee
   uint24 constant PIPS_DENOMINATOR = 1_000_000;
 
-  function calculateEGAmount(bool zeroForOne, int256 delta, uint256 fairExchangeRate)
+  /// @notice Calculates the amount of EG generated from a swap
+  function calculateEGAmount(int256 delta, bool zeroForOne, uint256 inverseFairExchangeRate)
     internal
     pure
     returns (uint256 egAmount)
@@ -29,10 +30,11 @@ library MathExt {
     amountIn = negate(amountIn);
 
     /// @dev can't overflow
-    uint256 fairAmountOut = amountIn.simpleMulDiv(fairExchangeRate, FixedPoint128.Q128);
+    uint256 fairAmountOut = amountIn.simpleMulDiv(FixedPoint128.Q128, inverseFairExchangeRate);
     return amountOut > fairAmountOut ? amountOut - fairAmountOut : 0;
   }
 
+  /// @notice Calculates the swap fee from the protocol fee and the LP fee
   function calculateSwapFee(uint24 protocolFee, uint24 lpFee, bool zeroForOne)
     internal
     pure
@@ -44,6 +46,7 @@ library MathExt {
     return _protocolFee == 0 ? lpFee : _protocolFee.calculateSwapFee(lpFee);
   }
 
+  /// @notice Calculates the input and output amounts for a price movement
   function calculateSwapAmounts(
     uint160 sqrtPriceCurrentX96,
     uint160 sqrtPriceNextX96,
@@ -63,12 +66,14 @@ library MathExt {
       : SqrtPriceMath.getAmount0Delta(sqrtPriceCurrentX96, sqrtPriceNextX96, liquidity, false);
   }
 
+  /// @notice Packs a tick and liquidity into a single uint256
   function packTickLiquidity(int24 tick, uint128 liquidity) internal pure returns (uint256 packed) {
     assembly ("memory-safe") {
       packed := or(shl(128, tick), liquidity)
     }
   }
 
+  /// @notice Unpacks a tick and liquidity from a single uint256
   function unpackTickLiquidity(uint256 packed)
     internal
     pure
@@ -80,6 +85,7 @@ library MathExt {
     }
   }
 
+  /// @notice Unpacks a delta into two amounts
   function unpackDelta(int256 delta) internal pure returns (uint256 amount0, uint256 amount1) {
     assembly {
       amount0 := sar(128, delta)
@@ -87,9 +93,10 @@ library MathExt {
     }
   }
 
+  /// @notice Negates a uint256
   function negate(uint256 value) internal pure returns (uint256 negated) {
     assembly {
-      negated := sub(value, mul(value, 2))
+      negated := sub(0, value)
     }
   }
 }

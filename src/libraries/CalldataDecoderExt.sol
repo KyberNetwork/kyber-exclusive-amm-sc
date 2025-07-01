@@ -10,43 +10,43 @@ import {CalldataDecoder} from 'uniswap/v4-periphery/src/libraries/CalldataDecode
 library CalldataDecoderExt {
   /// @notice Decodes the hook data into its components
   /// @param hookData The hook data to decode
-  /// @return maxAmountIn The maximum amount in
-  /// @return _fairExchangeRate The fair exchange rate
-  /// @return nonce The nonce
-  /// @return expiryTime The expiry time
-  /// @return signature The signature
+  /// @return _maxAmountIn The maximum amount in
+  /// @return _inverseFairExchangeRate The inverse fair exchange rate
+  /// @return _nonce The nonce
+  /// @return _expiryTime The expiry time
+  /// @return _signature The signature
   function decodeHookData(bytes calldata hookData)
     internal
     pure
     returns (
-      int256 maxAmountIn,
-      uint256 _fairExchangeRate,
-      uint256 nonce,
-      uint256 expiryTime,
-      bytes memory signature
+      int256 _maxAmountIn,
+      uint256 _inverseFairExchangeRate,
+      uint256 _nonce,
+      uint256 _expiryTime,
+      bytes memory _signature
     )
   {
     // no length check performed, as there is a length check in `toBytes`
     assembly ("memory-safe") {
-      maxAmountIn := calldataload(hookData.offset)
-      _fairExchangeRate := calldataload(add(hookData.offset, 0x20))
-      nonce := calldataload(add(hookData.offset, 0x40))
-      expiryTime := calldataload(add(hookData.offset, 0x60))
+      _maxAmountIn := calldataload(hookData.offset)
+      _inverseFairExchangeRate := calldataload(add(hookData.offset, 0x20))
+      _nonce := calldataload(add(hookData.offset, 0x40))
+      _expiryTime := calldataload(add(hookData.offset, 0x60))
     }
 
-    signature = CalldataDecoder.toBytes(hookData, 4);
+    _signature = CalldataDecoder.toBytes(hookData, 4);
   }
 
   /// @notice Decodes the fair exchange rate from the hook data
   /// @param hookData The hook data to decode
-  /// @return _fairExchangeRate The fair exchange rate
-  function fairExchangeRate(bytes calldata hookData)
+  /// @return _inverseFairExchangeRate The inverse fair exchange rate
+  function inverseFairExchangeRate(bytes calldata hookData)
     internal
     pure
-    returns (uint256 _fairExchangeRate)
+    returns (uint256 _inverseFairExchangeRate)
   {
     assembly ("memory-safe") {
-      _fairExchangeRate := calldataload(add(hookData.offset, 0x20))
+      _inverseFairExchangeRate := calldataload(add(hookData.offset, 0x20))
     }
   }
 }

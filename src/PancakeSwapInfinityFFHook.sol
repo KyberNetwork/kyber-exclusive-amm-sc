@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.26;
 
 import './interfaces/IFFHook.sol';
 import {IHooks} from 'pancakeswap/infinity-core/src/interfaces/IHooks.sol';
@@ -20,9 +20,9 @@ import {CLPoolParametersHelper} from
   'pancakeswap/infinity-core/src/pool-cl/libraries/CLPoolParametersHelper.sol';
 import {CLPosition} from 'pancakeswap/infinity-core/src/pool-cl/libraries/CLPosition.sol';
 
-/// @title PancakeswapInfinityFFHook
-/// @notice Pancakeswap Infinity variant of the FFHook
-contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
+/// @title PancakeSwapInfinityFFHook
+/// @notice PancakeSwap Infinity variant of the FFHook
+contract PancakeSwapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
   using CLPoolParametersHelper for bytes32;
   using StateLibrary for ICLPoolManager;
 
@@ -59,7 +59,7 @@ contract PancakeswapInfinityFFHook is BaseFFHook, CLBaseHook, ILockCallback {
         beforeDonate: false,
         afterDonate: false,
         beforeSwapReturnDelta: false,
-        afterSwapReturnDelta: false,
+        afterSwapReturnDelta: true,
         afterAddLiquidityReturnDelta: true,
         afterRemoveLiquidityReturnDelta: true
       })

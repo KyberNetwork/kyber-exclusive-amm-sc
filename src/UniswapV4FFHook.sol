@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.26;
 
 import './interfaces/IFFHook.sol';
 import {IPoolManager} from 'uniswap/v4-core/src/interfaces/IPoolManager.sol';
@@ -138,7 +138,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
     PoolKey calldata key,
     SwapParams calldata params,
     bytes calldata hookData
-  ) internal override whenNotPaused returns (bytes4, BeforeSwapDelta, uint24) {
+  ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
     // make sure that if the hook is paused, all the pools will be have like a normal pool
     if (!paused()) {
       _beforeSwap(

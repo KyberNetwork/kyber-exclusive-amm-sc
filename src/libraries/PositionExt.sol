@@ -8,6 +8,8 @@ import {Position} from 'uniswap/v4-core/src/libraries/Position.sol';
 /// @title PositionExt
 /// @notice Contains functions for managing position EG information and relevant calculations
 library PositionExt {
+  using FullMath for uint256;
+
   /// @notice EG info stored for each user's position
   struct Info {
     /// @notice EG growth per unit of liquidity as of the last update to liquidity or EGs owed
@@ -47,11 +49,11 @@ library PositionExt {
     uint256 egGrowthInside1X128
   ) internal returns (uint256 egOwed0, uint256 egOwed1) {
     unchecked {
-      egOwed0 = FullMath.mulDiv(
-        egGrowthInside0X128 - self.egGrowthInside0LastX128, liquidityBefore, FixedPoint128.Q128
+      egOwed0 = (egGrowthInside0X128 - self.egGrowthInside0LastX128).mulDiv(
+        liquidityBefore, FixedPoint128.Q128
       );
-      egOwed1 = FullMath.mulDiv(
-        egGrowthInside1X128 - self.egGrowthInside1LastX128, liquidityBefore, FixedPoint128.Q128
+      egOwed1 = (egGrowthInside1X128 - self.egGrowthInside1LastX128).mulDiv(
+        liquidityBefore, FixedPoint128.Q128
       );
 
       // update the position
