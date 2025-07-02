@@ -7,12 +7,14 @@ import {FFHookStorage} from './FFHookStorage.sol';
 
 import {PoolExt} from '../libraries/PoolExt.sol';
 
+import {SafeCast} from 'uniswap/v4-core/src/libraries/SafeCast.sol';
 import {BalanceDelta, toBalanceDelta} from 'uniswap/v4-core/src/types/BalanceDelta.sol';
 import {Slot0, Slot0Library} from 'uniswap/v4-core/src/types/Slot0.sol';
 
 abstract contract FFHookAfterModifyLiquidity is FFHookStorage, FFHookStateView, FFHookAccounting {
   using PoolExt for PoolExt.State;
   using Slot0Library for bytes32;
+  using SafeCast for *;
 
   /// @notice Internal logic for `afterAddLiquidity` and `afterRemoveLiquidity`
   function _afterModifyLiquidity(
@@ -51,10 +53,7 @@ abstract contract FFHookAfterModifyLiquidity is FFHookStorage, FFHookStateView, 
       _burn(token1, egOwed1);
     }
 
-    unchecked {
-      // the hook delta is negative because we are releasing EG
-      hookDelta =
-        BalanceDelta.unwrap(toBalanceDelta(-int128(int256(egOwed0)), -int128(int256(egOwed1))));
-    }
+    // the hook delta is negative because we are releasing EG
+    hookDelta = BalanceDelta.unwrap(toBalanceDelta(-egOwed0.toInt128(), -egOwed1.toInt128()));
   }
 }

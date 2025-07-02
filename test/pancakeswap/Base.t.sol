@@ -15,6 +15,7 @@ import 'pancakeswap/infinity-core/test/pool-cl/helpers/Fuzzers.sol';
 
 contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzzers {
   using CLPoolParametersHelper for bytes32;
+  using SafeCast for uint256;
 
   IVault public vault;
   CLPoolManager public manager;
@@ -74,7 +75,7 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
       )
     );
     deployCodeTo(
-      'PancakeSwapInfinityFFHook.sol',
+      'PancakeSwapInfinityFFHookHarness',
       abi.encode(
         admin,
         quoteSigner,
@@ -89,7 +90,7 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
   }
 
   function initPools(PoolConfig memory poolConfig) internal {
-    boundPoolConfig(poolConfig);
+    createFuzzyPoolConfig(poolConfig);
     poolConfig.sqrtPriceX96 =
       createRandomSqrtPriceX96(poolConfig.tickSpacing, int256(uint256(poolConfig.sqrtPriceX96)));
 
@@ -120,17 +121,26 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
 
     vm.prank(admin);
     hook.updateProtocolEGFee(PoolId.unwrap(idWithHook), poolConfig.protocolEGFee);
+
+    int24 tick = TickMath.getTickAtSqrtRatio(poolConfig.sqrtPriceX96);
+    minUsableTick = maxInt24(tick - 75_000, TickMath.MIN_TICK);
+    maxUsableTick = minInt24(tick + 75_000, TickMath.MAX_TICK);
+    minUsableSqrtPriceX96 = TickMath.getSqrtRatioAtTick(minUsableTick) + 1;
+    maxUsableSqrtPriceX96 = TickMath.getSqrtRatioAtTick(maxUsableTick) - 1;
   }
 
-  function addLiquidity(AddLiquidityConfig memory addLiquidityConfig) internal {
-    ICLPoolManager.ModifyLiquidityParams memory params = ICLPoolManager.ModifyLiquidityParams({
+  function addLiquidityBothPools(AddLiquidityConfig memory addLiquidityConfig)
+    internal
+    returns (ICLPoolManager.ModifyLiquidityParams memory params)
+  {
+    params = ICLPoolManager.ModifyLiquidityParams({
       tickLower: addLiquidityConfig.lowerTick,
       tickUpper: addLiquidityConfig.upperTick,
       liquidityDelta: addLiquidityConfig.liquidityDelta,
       salt: 0
     });
     (uint160 sqrtPriceX96,,,) = manager.getSlot0(idWithoutHook);
-    params = createFuzzyLiquidityParamsWithTightBound(
+    _createFuzzyLiquidityParamsWithTightBound(
       keyWithoutHook, params, sqrtPriceX96, NUM_POSITIONS_AND_SWAPS
     );
 
@@ -138,6 +148,8 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
       swapRouter.modifyPosition(keyWithHook, params, '');
     } catch (bytes memory reason) {
       assertEq(reason, abi.encodeWithSelector(SafeCast.SafeCastOverflow.selector));
+      // indicate that the liquidity is not added to the pool
+      params.liquidityDelta = 0;
     }
   }
 
@@ -230,7 +242,7 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
     );
   }
 
-  function swapWithHookOnly(SwapConfig memory swapConfig) internal {
+  function swapWithFFHook(SwapConfig memory swapConfig) internal {
     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
       zeroForOne: swapConfig.zeroForOne,
       amountSpecified: swapConfig.amountSpecified,
@@ -241,6 +253,53 @@ contract PancakeSwapHookBaseTest is BaseHookTest, Deployers, TokenFixture, Fuzze
     bytes memory hookData = getHookData(swapConfig, signature);
 
     swapRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
+
+  function _createFuzzyLiquidityParamsWithTightBound(
+    PoolKey memory key,
+    ICLPoolManager.ModifyLiquidityParams memory params,
+    uint160 sqrtPriceX96,
+    uint256 maxPositions
+  ) internal pure {
+    (params.tickLower, params.tickUpper) = boundTicks(key, params.tickLower, params.tickUpper);
+    int256 liquidityDeltaFromAmounts =
+      _getLiquidityDeltaFromAmounts(params.tickLower, params.tickUpper, sqrtPriceX96);
+
+    params.liquidityDelta = boundLiquidityDeltaTightly(
+      key, params.liquidityDelta, liquidityDeltaFromAmounts, maxPositions
+    );
+  }
+
+  function _getLiquidityDeltaFromAmounts(int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
+    internal
+    pure
+    returns (int256)
+  {
+    // First get the maximum amount0 and maximum amount1 that can be deposited at this range.
+    (uint256 maxAmount0, uint256 maxAmount1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      TickMath.getSqrtRatioAtTick(tickLower),
+      TickMath.getSqrtRatioAtTick(tickUpper),
+      uint128(type(int128).max)
+    );
+
+    uint256 amount0 = type(uint96).max;
+    uint256 amount1 = type(uint96).max;
+
+    maxAmount0 = maxAmount0 > amount0 ? amount0 : maxAmount0;
+    maxAmount1 = maxAmount1 > amount1 ? amount1 : maxAmount1;
+
+    int256 liquidityMaxByAmount = uint256(
+      LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceX96,
+        TickMath.getSqrtRatioAtTick(tickLower),
+        TickMath.getSqrtRatioAtTick(tickUpper),
+        maxAmount0,
+        maxAmount1
+      )
+    ).toInt256();
+
+    return liquidityMaxByAmount;
   }
 
   function getDigest(SwapConfig memory swapConfig) internal view returns (bytes32) {

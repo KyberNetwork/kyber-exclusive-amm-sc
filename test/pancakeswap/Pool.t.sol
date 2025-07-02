@@ -3,56 +3,72 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
-  function test_fuzz_pancakeswap_multiple_addLiquidity_and_swap_succeed(
+contract PancakeSwapHookPoolTest is PancakeSwapHookBaseTest {
+  function test_fuzz_pancakeswap_multiple_actions(
     PoolConfig memory poolConfig,
     AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
-    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
+    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs,
+    uint256[NUM_POSITIONS_AND_SWAPS * 3] memory actions
   ) public {
     initPools(poolConfig);
 
-    uint256[] memory protocolEGAmounts = new uint256[](2);
+    ICLPoolManager.ModifyLiquidityParams[] memory paramsList =
+      new ICLPoolManager.ModifyLiquidityParams[](NUM_POSITIONS_AND_SWAPS);
 
-    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
-      AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
-      SwapConfig memory swapConfig = swapConfigs[i];
+    actions = createFuzzyActionsOrdering(actions);
 
-      addLiquidity(addLiquidityConfig);
-      boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
-      swapConfig.nonce = i + 1;
-
-      uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
-      uint256 protocolEGAmount = totalEGAmount * poolConfig.protocolEGFee / MathExt.PIPS_DENOMINATOR;
-
-      protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
+    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS * 3; i++) {
+      if (actions[i] < NUM_POSITIONS_AND_SWAPS) {
+        handleSwap(swapConfigs[actions[i]], actions[i], poolConfig.protocolEGFee);
+      } else if (actions[i] < NUM_POSITIONS_AND_SWAPS * 2) {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS;
+        paramsList[actions[i]] = addLiquidityBothPools(addLiquidityConfigs[actions[i]]);
+      } else {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS * 2;
+        handleRemoveLiquidity(paramsList[actions[i]]);
+      }
     }
 
     vm.expectEmit(true, true, true, true, address(hook));
     emit IFFHookAdmin.ClaimProtocolEGs(egRecipient, tokens, protocolEGAmounts);
     vm.prank(operator);
     hook.claimProtocolEGs(tokens, new uint256[](2));
+
+    if (totalEGAmounts[0] > 1000) {
+      assertLe(
+        vault.balanceOf(address(hook), currency0),
+        totalEGAmounts[0] / 1000,
+        'remaining EG on token 0 exceeds 0.1% of total EG'
+      );
+    }
+    if (totalEGAmounts[1] > 1000) {
+      assertLe(
+        vault.balanceOf(address(hook), currency1),
+        totalEGAmounts[1] / 1000,
+        'remaining EG on token 1 exceeds 0.1% of total EG'
+      );
+    }
   }
 
-  /// forge-config: default.fuzz.runs = 20
-  function test_fuzz_pancakeswap_multiple_addLiquidity_and_swap_pausedHook_succeed(
-    PoolConfig memory poolConfig,
-    AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
-    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
-  ) public {
-    initPools(poolConfig);
+  function handleSwap(SwapConfig memory swapConfig, uint256 action, uint256 protocolEGFee)
+    internal
+    returns (uint256 protocolEGAmount)
+  {
+    createFuzzySwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
+    swapConfig.nonce = action + 1;
+    uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
+    protocolEGAmount = totalEGAmount * protocolEGFee / MathExt.PIPS_DENOMINATOR;
 
-    vm.prank(guardian);
-    Management(address(hook)).pause();
+    totalEGAmounts[swapConfig.zeroForOne ? 1 : 0] += totalEGAmount;
+    protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
+  }
 
-    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
-      AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
-      SwapConfig memory swapConfig = swapConfigs[i];
-
-      addLiquidity(addLiquidityConfig);
-      boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
-      swapConfig.nonce = i + 1;
-
-      swapBothPools_pausedHook(swapConfig);
+  function handleRemoveLiquidity(ICLPoolManager.ModifyLiquidityParams memory params) internal {
+    // flip the sign to remove the position
+    params.liquidityDelta = -params.liquidityDelta;
+    if (params.liquidityDelta != 0) {
+      swapRouter.modifyPosition(keyWithoutHook, params, '');
+      swapRouter.modifyPosition(keyWithHook, params, '');
     }
   }
 
@@ -62,7 +78,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     config.needClaimFlags = bound(config.needClaimFlags, 0, (1 << MULTIPLE_TEST_CONFIG_LENGTH) - 1);
 
   //     for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
-  //       addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
+  //       addLiquidityBothPools(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
   //       config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
   //       swapBothPools(
   //         config.addLiquidityAndSwapConfigs[i].swapConfig,
@@ -79,8 +95,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     SingleTestConfig memory config
   //   ) public {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
+  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
   //       zeroForOne: swapConfig.zeroForOne,
@@ -110,8 +126,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //   /// forge-config: default.fuzz.runs = 20
   //   function test_pancakeswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
+  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //     swapConfig.amountSpecified = -swapConfig.amountSpecified;
 
@@ -132,8 +148,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     SingleTestConfig memory config
   //   ) public {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
+  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //     vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
 
@@ -156,8 +172,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     SingleTestConfig memory config
   //   ) public {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
+  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //     swapConfig.amountSpecified =
   //       -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
@@ -182,8 +198,8 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     SingleTestConfig memory config
   //   ) public {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
+  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
   //       zeroForOne: swapConfig.zeroForOne,
@@ -214,7 +230,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     public
   //   {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
   //     config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
   //     swapBothPools(config.swapConfig, false, false, false);
@@ -227,7 +243,7 @@ contract PancakeSwapHookSwapTest is PancakeSwapHookBaseTest {
   //     public
   //   {
   //     initPools(config.poolConfig);
-  //     addLiquidity(config.addLiquidityConfig);
+  //     addLiquidityBothPools(config.addLiquidityConfig);
   //     config.swapConfig.nonce = 0;
 
   //     swapBothPools(config.swapConfig, false, false, false);

@@ -14,11 +14,11 @@ library MathExt {
   /// @notice The denominator for the protocol fee
   uint24 constant PIPS_DENOMINATOR = 1_000_000;
 
-  /// @notice Calculates the amount of EG generated from a swap
+  /// @notice Calculates the amount of EG generated given delta
   function calculateEGAmount(int256 delta, bool zeroForOne, uint256 inverseFairExchangeRate)
     internal
     pure
-    returns (uint256 egAmount)
+    returns (uint256)
   {
     uint256 amountIn;
     uint256 amountOut;
@@ -29,9 +29,20 @@ library MathExt {
     }
     amountIn = negate(amountIn);
 
+    return calculateEGAmount(amountIn, amountOut, inverseFairExchangeRate);
+  }
+
+  /// @notice Calculates the amount of EG generated given input and output amount
+  function calculateEGAmount(uint256 amountIn, uint256 amountOut, uint256 inverseFairExchangeRate)
+    internal
+    pure
+    returns (uint256 egAmount)
+  {
     /// @dev can't overflow
     uint256 fairAmountOut = amountIn.simpleMulDiv(FixedPoint128.Q128, inverseFairExchangeRate);
-    return amountOut > fairAmountOut ? amountOut - fairAmountOut : 0;
+    unchecked {
+      return amountOut > fairAmountOut ? amountOut - fairAmountOut : 0;
+    }
   }
 
   /// @notice Calculates the swap fee from the protocol fee and the LP fee

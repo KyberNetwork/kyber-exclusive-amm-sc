@@ -74,6 +74,7 @@ contract UniswapV4FFHook is BaseFFHook, BaseHook, IUnlockCallback {
   /// @notice Stop the pool from being initialized if the hook is paused
   function _beforeInitialize(address, PoolKey calldata, uint160)
     internal
+    view
     override
     whenNotPaused
     returns (bytes4)

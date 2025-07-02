@@ -113,7 +113,7 @@ abstract contract FFHookAdmin is
   }
 
   /// @notice Disallow unpausing the hook
-  function _unpause() internal override {
+  function _unpause() internal pure override {
     revert UnpauseDisabled();
   }
 }

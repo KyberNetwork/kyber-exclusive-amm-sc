@@ -3,58 +3,96 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-contract UniswapHookSwapTest is UniswapHookBaseTest {
-  function test_fuzz_uniswap_multiple_addLiquidity_and_swap_succeed(
+contract UniswapHookPoolTest is UniswapHookBaseTest {
+  function test_fuzz_uniswap_multiple_actions(
     PoolConfig memory poolConfig,
     AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
-    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
+    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs,
+    uint256[NUM_POSITIONS_AND_SWAPS * 3] memory actions
   ) public {
     initPools(poolConfig);
 
-    uint256[] memory protocolEGAmounts = new uint256[](2);
+    ModifyLiquidityParams[] memory paramsList = new ModifyLiquidityParams[](NUM_POSITIONS_AND_SWAPS);
 
-    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
-      AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
-      SwapConfig memory swapConfig = swapConfigs[i];
+    actions = createFuzzyActionsOrdering(actions);
 
-      addLiquidity(addLiquidityConfig);
-      boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
-      swapConfig.nonce = i + 1;
-
-      uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
-      uint256 protocolEGAmount = totalEGAmount * poolConfig.protocolEGFee / MathExt.PIPS_DENOMINATOR;
-
-      protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
+    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS * 3; i++) {
+      if (actions[i] < NUM_POSITIONS_AND_SWAPS) {
+        handleSwap(swapConfigs[actions[i]], actions[i], poolConfig.protocolEGFee);
+      } else if (actions[i] < NUM_POSITIONS_AND_SWAPS * 2) {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS;
+        paramsList[actions[i]] = addLiquidityBothPools(addLiquidityConfigs[actions[i]]);
+      } else {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS * 2;
+        handleRemoveLiquidity(paramsList[actions[i]]);
+      }
     }
 
     vm.expectEmit(true, true, true, true, address(hook));
     emit IFFHookAdmin.ClaimProtocolEGs(egRecipient, tokens, protocolEGAmounts);
     vm.prank(operator);
     hook.claimProtocolEGs(tokens, new uint256[](2));
-  }
 
-  /// forge-config: default.fuzz.runs = 20
-  function test_fuzz_uniswap_multiple_addLiquidity_and_swap_pausedHook_succeed(
-    PoolConfig memory poolConfig,
-    AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
-    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
-  ) public {
-    initPools(poolConfig);
-
-    vm.prank(guardian);
-    Management(address(hook)).pause();
-
-    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
-      AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
-      SwapConfig memory swapConfig = swapConfigs[i];
-
-      addLiquidity(addLiquidityConfig);
-      boundSwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
-      swapConfig.nonce = i + 1;
-
-      swapBothPools_pausedHook(swapConfig);
+    if (totalEGAmounts[0] > 1000) {
+      assertLe(
+        manager.balanceOf(address(hook), uint160(tokens[0])),
+        totalEGAmounts[0] / 1000,
+        'remaining EG on token 0 exceeds 0.1% of total EG'
+      );
+    }
+    if (totalEGAmounts[1] > 1000) {
+      assertLe(
+        manager.balanceOf(address(hook), uint160(tokens[1])),
+        totalEGAmounts[1] / 1000,
+        'remaining EG on token 1 exceeds 0.1% of total EG'
+      );
     }
   }
+
+  function handleSwap(SwapConfig memory swapConfig, uint256 action, uint256 protocolEGFee)
+    internal
+    returns (uint256 protocolEGAmount)
+  {
+    createFuzzySwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
+    swapConfig.nonce = action + 1;
+    uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
+    protocolEGAmount = totalEGAmount * protocolEGFee / MathExt.PIPS_DENOMINATOR;
+
+    totalEGAmounts[swapConfig.zeroForOne ? 1 : 0] += totalEGAmount;
+    protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
+  }
+
+  function handleRemoveLiquidity(ModifyLiquidityParams memory params) internal {
+    // flip the sign to remove the position
+    params.liquidityDelta = -params.liquidityDelta;
+    if (params.liquidityDelta != 0) {
+      modifyLiquidityNoChecks.modifyLiquidity(keyWithoutHook, params, '');
+      modifyLiquidityNoChecks.modifyLiquidity(keyWithHook, params, '');
+    }
+  }
+
+  // /// forge-config: default.fuzz.runs = 20
+  // function test_fuzz_uniswap_multiple_addLiquidity_and_swap_pausedHook_succeed(
+  //   PoolConfig memory poolConfig,
+  //   AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
+  //   SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs
+  // ) public {
+  //   initPools(poolConfig);
+
+  //   vm.prank(guardian);
+  //   Management(address(hook)).pause();
+
+  //   for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS; i++) {
+  //     AddLiquidityConfig memory addLiquidityConfig = addLiquidityConfigs[i];
+  //     SwapConfig memory swapConfig = swapConfigs[i];
+
+  //     addLiquidityBothPools(addLiquidityConfig);
+  //     createFuzzySwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
+  //     swapConfig.nonce = i + 1;
+
+  //     swapBothPools_pausedHook(swapConfig);
+  //   }
+  // }
 
   // function test_uniswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
   //   initPools(config.poolConfig);
@@ -62,7 +100,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   //   config.needClaimFlags = bound(config.needClaimFlags, 0, (1 << MULTIPLE_TEST_CONFIG_LENGTH) - 1);
 
   //   for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
-  //     addLiquidity(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
+  //     addLiquidityBothPools(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
   //     config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
   //     swapBothPools(
   //       config.addLiquidityAndSwapConfigs[i].swapConfig,
@@ -79,8 +117,8 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   //   SingleTestConfig memory config
   // ) public {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
-  //   SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
+  //   SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //   IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
   //     zeroForOne: swapConfig.zeroForOne,
@@ -109,8 +147,8 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   // /// forge-config: default.fuzz.runs = 20
   // function test_uniswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
-  //   SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
+  //   SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //   swapConfig.amountSpecified = -swapConfig.amountSpecified;
 
@@ -131,8 +169,8 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   //   public
   // {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
-  //   SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
+  //   SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //   vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
 
@@ -155,8 +193,8 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   //   public
   // {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
-  //   SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
+  //   SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //   swapConfig.amountSpecified =
   //     -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
@@ -181,8 +219,8 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   //   SingleTestConfig memory config
   // ) public {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
-  //   SwapConfig memory swapConfig = boundSwapConfig(config.swapConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
+  //   SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
 
   //   IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
   //     zeroForOne: swapConfig.zeroForOne,
@@ -211,7 +249,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   // /// forge-config: default.fuzz.runs = 20
   // function test_uniswap_exactInput_with_usedNonce_shouldFail(SingleTestConfig memory config) public {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
   //   config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
 
   //   swapBothPools(config.swapConfig, false, false, false);
@@ -222,7 +260,7 @@ contract UniswapHookSwapTest is UniswapHookBaseTest {
   // /// forge-config: default.fuzz.runs = 20
   // function test_uniswap_exactInput_with_zeroNonce_succeed(SingleTestConfig memory config) public {
   //   initPools(config.poolConfig);
-  //   addLiquidity(config.addLiquidityConfig);
+  //   addLiquidityBothPools(config.addLiquidityConfig);
   //   config.swapConfig.nonce = 0;
 
   //   swapBothPools(config.swapConfig, false, false, false);

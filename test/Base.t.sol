@@ -7,6 +7,7 @@ import 'src/interfaces/IFFHook.sol';
 
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import {FixedPoint128, MathExt} from 'src/libraries/MathExt.sol';
+import {TickMath as UniswapTickMath} from 'uniswap/v4-core/src/libraries/TickMath.sol';
 
 import 'ks-common-sc/src/base/Management.sol';
 import 'ks-common-sc/src/interfaces/ICommon.sol';
@@ -19,15 +20,8 @@ interface IFFHookHarness is IFFHook {
 abstract contract BaseHookTest is Test {
   using MathExt for *;
 
-  /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
-  uint160 constant MIN_SQRT_PRICE = 4_295_128_739;
-
-  /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
-  uint160 constant MAX_SQRT_PRICE =
-    1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
-
   /// @dev The number of liquidity positions
-  uint256 constant NUM_POSITIONS_AND_SWAPS = 100;
+  uint256 constant NUM_POSITIONS_AND_SWAPS = 20;
 
   struct PoolConfig {
     uint24 lpFee;
@@ -59,8 +53,17 @@ abstract contract BaseHookTest is Test {
   address operator;
   address guardian;
   address rescuer;
-
   address[] actors;
+
+  uint256[] totalEGAmounts = new uint256[](2);
+  uint256[] protocolEGAmounts = new uint256[](2);
+
+  uint256[] alivePositions;
+
+  int24 minUsableTick;
+  int24 maxUsableTick;
+  uint160 minUsableSqrtPriceX96;
+  uint160 maxUsableSqrtPriceX96;
 
   IFFHook hook;
 
@@ -73,44 +76,52 @@ abstract contract BaseHookTest is Test {
     rescuer = makeAddr('rescuer');
 
     actors = [admin, operator, quoteSigner, egRecipient, guardian, rescuer, makeAddr('anyone')];
+
+    deal(address(this), 2 ** 255);
   }
 
-  function boundPoolConfig(PoolConfig memory poolConfig) internal pure returns (PoolConfig memory) {
-    poolConfig.lpFee = uint24(bound(poolConfig.lpFee, 0, 999_999));
+  function createFuzzyPoolConfig(PoolConfig memory poolConfig)
+    internal
+    pure
+    returns (PoolConfig memory)
+  {
+    poolConfig.lpFee = uint24(bound(poolConfig.lpFee, 0, 1000));
     poolConfig.tickSpacing = int24(bound(poolConfig.tickSpacing, 1, 1023));
-    poolConfig.protocolEGFee = uint24(bound(poolConfig.protocolEGFee, 0, 999_999));
+    poolConfig.protocolEGFee = uint24(bound(poolConfig.protocolEGFee, 0, 1000));
 
     return poolConfig;
   }
 
-  function boundSwapConfig(bytes32 poolId, SwapConfig memory swapConfig)
+  function createFuzzySwapConfig(bytes32 poolId, SwapConfig memory swapConfig)
     internal
     view
     returns (SwapConfig memory)
   {
-    (uint160 sqrtPriceX96,,,) = getSlot0(poolId);
+    (swapConfig.sqrtPriceLimitX96, swapConfig.zeroForOne) =
+      boundSqrtPriceLimitX96(poolId, swapConfig.sqrtPriceLimitX96);
     swapConfig.amountSpecified = bound(swapConfig.amountSpecified, type(int128).min + 1, -1);
-    if (sqrtPriceX96 == MIN_SQRT_PRICE + 1) {
-      swapConfig.sqrtPriceLimitX96 =
-        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 2, MAX_SQRT_PRICE - 1));
-      swapConfig.zeroForOne = false;
-    } else if (sqrtPriceX96 == MAX_SQRT_PRICE - 1) {
-      swapConfig.sqrtPriceLimitX96 =
-        uint160(bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, MAX_SQRT_PRICE - 2));
-      swapConfig.zeroForOne = true;
-    } else {
-      swapConfig.sqrtPriceLimitX96 = uint160(
-        swapConfig.zeroForOne
-          ? bound(swapConfig.sqrtPriceLimitX96, MIN_SQRT_PRICE + 1, sqrtPriceX96 - 1)
-          : bound(swapConfig.sqrtPriceLimitX96, sqrtPriceX96 + 1, MAX_SQRT_PRICE - 1)
-      );
-    }
     swapConfig.maxAmountIn =
       bound(swapConfig.maxAmountIn, -swapConfig.amountSpecified, type(int256).max - 1);
     swapConfig.nonce = bound(swapConfig.nonce, 1, type(uint256).max);
     swapConfig.expiryTime = bound(swapConfig.expiryTime, block.timestamp, type(uint128).max);
 
     return swapConfig;
+  }
+
+  function boundSqrtPriceLimitX96(bytes32 poolId, uint160 sqrtPriceLimitX96)
+    internal
+    view
+    returns (uint160, bool)
+  {
+    (uint160 sqrtPriceX96,,,) = getSlot0(poolId);
+    sqrtPriceLimitX96 =
+      uint160(bound(sqrtPriceLimitX96, minUsableSqrtPriceX96, maxUsableSqrtPriceX96));
+    if (sqrtPriceLimitX96 == sqrtPriceX96) {
+      sqrtPriceLimitX96 =
+        sqrtPriceLimitX96 > minUsableSqrtPriceX96 ? sqrtPriceLimitX96 - 1 : sqrtPriceLimitX96 + 1;
+    }
+
+    return (sqrtPriceLimitX96, sqrtPriceLimitX96 < sqrtPriceX96);
   }
 
   function boundInverseFairExchangeRate(
@@ -132,12 +143,47 @@ abstract contract BaseHookTest is Test {
     }
 
     uint256 inverseExchangeRate = amountIn * FixedPoint128.Q128 / amountOut;
-    // bound the inverse fair exchange rate to be within 5% of the inverse exchange rate
+    // limit the inverse fair exchange rate to be within 5% of the actual inverse exchange rate
     uint256 minInverseFairExchangeRate = inverseExchangeRate - inverseExchangeRate / 20;
     uint256 maxInverseFairExchangeRate = inverseExchangeRate
       + Math.min(type(uint256).max - inverseExchangeRate, inverseExchangeRate / 20);
 
     return bound(inverseFairExchangeRate, minInverseFairExchangeRate, maxInverseFairExchangeRate);
+  }
+
+  function createFuzzyActionsOrdering(uint256[NUM_POSITIONS_AND_SWAPS * 3] memory actions)
+    internal
+    returns (uint256[NUM_POSITIONS_AND_SWAPS * 3] memory)
+  {
+    uint256 currentSwapIndex = 0;
+    uint256 currentPositionIndex = 0;
+
+    for (uint256 i = 0; i < actions.length; i++) {
+      uint256 actionType;
+      if (alivePositions.length == 0) {
+        if (currentSwapIndex == NUM_POSITIONS_AND_SWAPS) {
+          actionType = 1;
+        } else if (currentPositionIndex == NUM_POSITIONS_AND_SWAPS) {
+          actionType = 0;
+        } else {
+          actionType = bound(actions[i], 0, 1);
+        }
+      } else {
+        actionType = bound(actions[i], 0, 2);
+      }
+
+      if (actionType == 0) {
+        actions[i] = currentSwapIndex++;
+      } else if (actionType == 1) {
+        actions[i] = currentPositionIndex++;
+      } else {
+        actions[i] = pop(alivePositions, actions[i]);
+      }
+
+      actions[i] += actionType * NUM_POSITIONS_AND_SWAPS;
+    }
+
+    return actions;
   }
 
   function getSlot0(bytes32 poolId)
@@ -173,5 +219,24 @@ abstract contract BaseHookTest is Test {
   function newUint256Array(uint256 value) internal pure returns (uint256[] memory values) {
     values = new uint256[](1);
     values[0] = value;
+  }
+
+  function push(uint256[] storage arr, uint256 value) internal {
+    arr.push(value);
+  }
+
+  function pop(uint256[] storage arr, uint256 index) internal returns (uint256 value) {
+    index = bound(index, 0, arr.length - 1);
+    value = arr[index];
+    arr[index] = arr[arr.length - 1];
+    arr.pop();
+  }
+
+  function minInt24(int24 a, int24 b) internal pure returns (int24) {
+    return a < b ? a : b;
+  }
+
+  function maxInt24(int24 a, int24 b) internal pure returns (int24) {
+    return a > b ? a : b;
   }
 }

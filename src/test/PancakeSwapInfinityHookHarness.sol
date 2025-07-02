@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import 'src/UniswapV4FFHook.sol';
+import '../PancakeSwapInfinityFFHook.sol';
 
-contract UniswapV4FFHookHarness is UniswapV4FFHook {
+contract PancakeSwapInfinityFFHookHarness is PancakeSwapInfinityFFHook {
   constructor(
     address initialAdmin,
     address initialQuoteSigner,
@@ -11,9 +11,9 @@ contract UniswapV4FFHookHarness is UniswapV4FFHook {
     address[] memory initialOperators,
     address[] memory initialGuardians,
     address[] memory initialRescuers,
-    IPoolManager _poolManager
+    ICLPoolManager _poolManager
   )
-    UniswapV4FFHook(
+    PancakeSwapInfinityFFHook(
       initialAdmin,
       initialQuoteSigner,
       initialEgRecipient,
