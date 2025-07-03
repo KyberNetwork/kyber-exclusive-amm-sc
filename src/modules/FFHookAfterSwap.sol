@@ -57,7 +57,7 @@ abstract contract FFHookAfterSwap is
 
     if (totalEGAmount > 0) {
       _mint(tokenOut, totalEGAmount);
-      
+
       emit AbsorbEG(poolId, tokenOut, totalEGAmount);
     }
     if (protocolEGAmount > 0) {

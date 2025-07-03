@@ -5,6 +5,7 @@ import 'forge-std/Test.sol';
 
 import 'src/interfaces/IFFHook.sol';
 
+import {Pausable} from 'openzeppelin-contracts/contracts/utils/Pausable.sol';
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import {FixedPoint128, MathExt} from 'src/libraries/MathExt.sol';
 import {TickMath as UniswapTickMath} from 'uniswap/v4-core/src/libraries/TickMath.sol';

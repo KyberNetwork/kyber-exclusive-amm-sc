@@ -6,7 +6,7 @@ import './Base.t.sol';
 contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
   /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_admin_updateQuoteSigner(address newSigner) public {
-    vm.startPrank(admin);
+    vm.prank(admin);
     if (newSigner == address(0)) {
       vm.expectRevert(ICommon.InvalidAddress.selector);
     }
@@ -14,11 +14,13 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_others_updateQuoteSigner(uint256 actorIndex, address newSigner) public {
+  function test_pancakeswap_others_updateQuoteSigner_fail(uint256 actorIndex, address newSigner)
+    public
+  {
     address actor = actors[bound(actorIndex, 0, actors.length - 1)];
     vm.assume(actor != admin);
 
-    vm.startPrank(actor);
+    vm.prank(actor);
     vm.expectRevert(
       abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, actor, 0x00)
     );
@@ -27,7 +29,7 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
 
   /// forge-config: default.fuzz.runs = 20
   function test_pancakeswap_admin_updateEGRecipient(address newEGRecipient) public {
-    vm.startPrank(admin);
+    vm.prank(admin);
     if (newEGRecipient == address(0)) {
       vm.expectRevert(ICommon.InvalidAddress.selector);
     }
@@ -35,13 +37,14 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_others_updateEGRecipient(uint256 actorIndex, address newEGRecipient)
-    public
-  {
+  function test_pancakeswap_others_updateEGRecipient_fail(
+    uint256 actorIndex,
+    address newEGRecipient
+  ) public {
     address actor = actors[bound(actorIndex, 0, actors.length - 1)];
     vm.assume(actor != admin);
 
-    vm.startPrank(actor);
+    vm.prank(actor);
     vm.expectRevert(
       abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, actor, 0x00)
     );
@@ -58,16 +61,14 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
     Management(address(hook)).pause();
   }
 
-  function test_pancakeswap_unpause() public {
-    vm.startPrank(guardian);
+  function test_pancakeswap_unpause_fail() public {
+    vm.prank(guardian);
     vm.expectRevert(IFFHookAdmin.UnpauseDisabled.selector);
     Management(address(hook)).unpause();
-    vm.stopPrank();
 
-    vm.startPrank(admin);
+    vm.prank(admin);
     vm.expectRevert(IFFHookAdmin.UnpauseDisabled.selector);
     Management(address(hook)).unpause();
-    vm.stopPrank();
   }
 
   /// forge-config: default.fuzz.runs = 20
@@ -134,7 +135,7 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_others_claimProtocolEGs(
+  function test_pancakeswap_others_claimProtocolEGs_fail(
     uint256 actorIndex,
     uint256 claimAmount0,
     uint256 claimAmount1
@@ -146,7 +147,7 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
     amounts[0] = claimAmount0;
     amounts[1] = claimAmount1;
 
-    vm.startPrank(actor);
+    vm.prank(actor);
     vm.expectRevert(
       abi.encodeWithSelector(
         IAccessControl.AccessControlUnauthorizedAccount.selector, actor, KSRoles.OPERATOR_ROLE
@@ -175,6 +176,12 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
     amounts[0] = rescueAmount0 == 0 ? mintAmount0 : rescueAmount0;
     amounts[1] = rescueAmount1 == 0 ? mintAmount1 : rescueAmount1;
 
+    // before pausing the hook
+    vm.prank(mintAmount0 % 2 == 0 ? admin : rescuer);
+    vm.expectRevert(Pausable.ExpectedPause.selector);
+    hook.rescueEGs(tokens, amounts);
+
+    // after pausing the hook
     vm.prank(guardian);
     Management(address(hook)).pause();
 
@@ -190,7 +197,7 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
   }
 
   /// forge-config: default.fuzz.runs = 20
-  function test_pancakeswap_others_rescueEGs(
+  function test_pancakeswap_others_rescueEGs_fail(
     uint256 actorIndex,
     uint256 rescueAmount0,
     uint256 rescueAmount1
@@ -205,7 +212,7 @@ contract PancakeSwapHookAdminTest is PancakeSwapHookBaseTest {
     vm.prank(guardian);
     Management(address(hook)).pause();
 
-    vm.startPrank(actor);
+    vm.prank(actor);
     vm.expectRevert(
       abi.encodeWithSelector(
         IAccessControl.AccessControlUnauthorizedAccount.selector, actor, KSRoles.RESCUER_ROLE

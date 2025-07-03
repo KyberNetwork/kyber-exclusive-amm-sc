@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v2
   pull_request:
 
 jobs:
@@ -22,7 +23,9 @@ jobs:
           version: stable
 
       - name: Build
-        run: forge build --sizes
+        run: |
+          forge --version
+          forge build --sizes
 
       - name: Run tests
         run: forge test --isolate

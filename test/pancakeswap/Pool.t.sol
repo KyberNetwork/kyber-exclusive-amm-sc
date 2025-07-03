@@ -11,11 +11,9 @@ contract PancakeSwapHookPoolTest is PancakeSwapHookBaseTest {
     uint256[NUM_POSITIONS_AND_SWAPS * 3] memory actions
   ) public {
     initPools(poolConfig);
-
+    actions = createFuzzyActionsOrdering(actions);
     ICLPoolManager.ModifyLiquidityParams[] memory paramsList =
       new ICLPoolManager.ModifyLiquidityParams[](NUM_POSITIONS_AND_SWAPS);
-
-    actions = createFuzzyActionsOrdering(actions);
 
     for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS * 3; i++) {
       if (actions[i] < NUM_POSITIONS_AND_SWAPS) {
@@ -25,7 +23,7 @@ contract PancakeSwapHookPoolTest is PancakeSwapHookBaseTest {
         paramsList[actions[i]] = addLiquidityBothPools(addLiquidityConfigs[actions[i]]);
       } else {
         actions[i] -= NUM_POSITIONS_AND_SWAPS * 2;
-        handleRemoveLiquidity(paramsList[actions[i]]);
+        removeLiquidityBothPools(paramsList[actions[i]]);
       }
     }
 
@@ -54,200 +52,236 @@ contract PancakeSwapHookPoolTest is PancakeSwapHookBaseTest {
     internal
     returns (uint256 protocolEGAmount)
   {
-    createFuzzySwapConfig(PoolId.unwrap(idWithoutHook), swapConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
     swapConfig.nonce = action + 1;
-    uint256 totalEGAmount = swapBothPools(swapConfig, true, false);
+    uint256 totalEGAmount = swapBothPools(swapConfig);
     protocolEGAmount = totalEGAmount * protocolEGFee / MathExt.PIPS_DENOMINATOR;
 
     totalEGAmounts[swapConfig.zeroForOne ? 1 : 0] += totalEGAmount;
     protocolEGAmounts[swapConfig.zeroForOne ? 1 : 0] += protocolEGAmount;
   }
 
-  function handleRemoveLiquidity(ICLPoolManager.ModifyLiquidityParams memory params) internal {
-    // flip the sign to remove the position
-    params.liquidityDelta = -params.liquidityDelta;
-    if (params.liquidityDelta != 0) {
-      swapRouter.modifyPosition(keyWithoutHook, params, '');
-      swapRouter.modifyPosition(keyWithHook, params, '');
+  /// forge-config: default.fuzz.runs = 20
+  function test_fuzz_pancakeswap_multiple_actions_pausedHook(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig[NUM_POSITIONS_AND_SWAPS] memory addLiquidityConfigs,
+    SwapConfig[NUM_POSITIONS_AND_SWAPS] memory swapConfigs,
+    uint256[NUM_POSITIONS_AND_SWAPS * 3] memory actions
+  ) public {
+    initPools(poolConfig);
+    actions = createFuzzyActionsOrdering(actions);
+    ICLPoolManager.ModifyLiquidityParams[] memory paramsList =
+      new ICLPoolManager.ModifyLiquidityParams[](NUM_POSITIONS_AND_SWAPS);
+
+    vm.prank(guardian);
+    Management(address(hook)).pause();
+
+    for (uint256 i = 0; i < NUM_POSITIONS_AND_SWAPS * 3; i++) {
+      if (actions[i] < NUM_POSITIONS_AND_SWAPS) {
+        SwapConfig memory swapConfig =
+          createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfigs[actions[i]]);
+        swapConfig.nonce = actions[i] + 1;
+        swapBothPools_pausedHook(swapConfig);
+      } else if (actions[i] < NUM_POSITIONS_AND_SWAPS * 2) {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS;
+        paramsList[actions[i]] = addLiquidityBothPools_pausedHook(addLiquidityConfigs[actions[i]]);
+      } else {
+        actions[i] -= NUM_POSITIONS_AND_SWAPS * 2;
+        removeLiquidityBothPools_pausedHook(paramsList[actions[i]]);
+      }
     }
   }
 
-  //   function test_pancakeswap_exactInput_multiple_succeed(MultipleTestConfig memory config) public {
-  //     initPools(config.poolConfig);
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_exactOut_fail(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
+    swapConfig.amountSpecified = -swapConfig.amountSpecified;
 
-  //     config.needClaimFlags = bound(config.needClaimFlags, 0, (1 << MULTIPLE_TEST_CONFIG_LENGTH) - 1);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(IFFHookBeforeSwap.ExactOutDisabled.selector),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    swapOnlyHook(swapConfig);
+  }
 
-  //     for (uint256 i = 0; i < MULTIPLE_TEST_CONFIG_LENGTH; i++) {
-  //       addLiquidityBothPools(config.addLiquidityAndSwapConfigs[i].addLiquidityConfig);
-  //       config.addLiquidityAndSwapConfigs[i].swapConfig.nonce = i;
-  //       swapBothPools(
-  //         config.addLiquidityAndSwapConfigs[i].swapConfig,
-  //         (config.needClaimFlags >> i & 1) == 1,
-  //         false,
-  //         false
-  //       );
-  //     }
-  //   }
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_invalidSender_fail(
+    uint256 actorIndex,
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_invalidSender_shouldFail(
-  //     uint256 actorIndex,
-  //     SingleTestConfig memory config
-  //   ) public {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
+    ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
 
-  //     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
-  //       zeroForOne: swapConfig.zeroForOne,
-  //       amountSpecified: swapConfig.amountSpecified,
-  //       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
-  //     });
+    bytes memory signature = sign(quoteSignerKey, hash(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
-  //     bytes memory signature = getSignature(quoteSignerKey, getDigest(swapConfig));
-  //     bytes memory hookData = getHookData(swapConfig, signature);
+    CLPoolManagerRouter newRouter =
+      CLPoolManagerRouter(actors[bound(actorIndex, 0, actors.length - 1)]);
+    deployCodeTo('CLPoolManagerRouter.sol', abi.encode(vault, manager), address(newRouter));
 
-  //     CLPoolManagerRouter newRouter =
-  //       CLPoolManagerRouter(actors[bound(actorIndex, 0, actors.length - 1)]);
-  //     deployCodeTo('CLPoolManagerRouter.sol', abi.encode(vault, manager), address(newRouter));
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(IFFHookBeforeSwap.InvalidSignature.selector),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    newRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
 
-  //     vm.expectRevert(
-  //       abi.encodeWithSelector(
-  //         CustomRevert.WrappedError.selector,
-  //         hook,
-  //         ICLHooks.beforeSwap.selector,
-  //         abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
-  //         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-  //       )
-  //     );
-  //     newRouter.swap(keyWithHook, params, testSettings, hookData);
-  //   }
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_expiredSignature_fail(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactOutput_shouldFail(SingleTestConfig memory config) public {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
+    vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
 
-  //     swapConfig.amountSpecified = -swapConfig.amountSpecified;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(
+          IFFHookBeforeSwap.ExpiredSignature.selector, swapConfig.expiryTime, block.timestamp
+        ),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    swapOnlyHook(swapConfig);
+  }
 
-  //     vm.expectRevert(
-  //       abi.encodeWithSelector(
-  //         CustomRevert.WrappedError.selector,
-  //         hook,
-  //         ICLHooks.beforeSwap.selector,
-  //         abi.encodeWithSelector(IKEMHook.ExactOutputDisabled.selector),
-  //         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-  //       )
-  //     );
-  //     swapWithHookOnly(swapConfig);
-  //   }
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_tooLargeAmountIn_fail(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
+    swapConfig.amountSpecified =
+      -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_expiredSignature_shouldFail(
-  //     SingleTestConfig memory config
-  //   ) public {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(
+          IFFHookBeforeSwap.TooLargeAmountIn.selector,
+          swapConfig.maxAmountIn,
+          -swapConfig.amountSpecified
+        ),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    swapOnlyHook(swapConfig);
+  }
 
-  //     vm.warp(swapConfig.expiryTime + bound(swapConfig.expiryTime, 1, 1e18));
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_wrongSigner_fail(
+    uint256 privKey,
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
 
-  //     vm.expectRevert(
-  //       abi.encodeWithSelector(
-  //         CustomRevert.WrappedError.selector,
-  //         hook,
-  //         ICLHooks.beforeSwap.selector,
-  //         abi.encodeWithSelector(
-  //           IKEMHook.ExpiredSignature.selector, swapConfig.expiryTime, block.timestamp
-  //         ),
-  //         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-  //       )
-  //     );
-  //     swapWithHookOnly(swapConfig);
-  //   }
+    ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
+      zeroForOne: swapConfig.zeroForOne,
+      amountSpecified: swapConfig.amountSpecified,
+      sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
+    });
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_exceededAmountIn_shouldFail(
-  //     SingleTestConfig memory config
-  //   ) public {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
+    privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
+    vm.assume(privKey != quoteSignerKey);
 
-  //     swapConfig.amountSpecified =
-  //       -bound(swapConfig.amountSpecified, swapConfig.maxAmountIn + 1, type(int256).max);
+    bytes memory signature = sign(privKey, hash(swapConfig));
+    bytes memory hookData = getHookData(swapConfig, signature);
 
-  //     vm.expectRevert(
-  //       abi.encodeWithSelector(
-  //         CustomRevert.WrappedError.selector,
-  //         hook,
-  //         ICLHooks.beforeSwap.selector,
-  //         abi.encodeWithSelector(
-  //           IKEMHook.ExceededMaxAmountIn.selector, swapConfig.maxAmountIn, -swapConfig.amountSpecified
-  //         ),
-  //         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-  //       )
-  //     );
-  //     swapWithHookOnly(swapConfig);
-  //   }
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(IFFHookBeforeSwap.InvalidSignature.selector),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    swapRouter.swap(keyWithHook, params, testSettings, hookData);
+  }
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_invalidSignature_shouldFail(
-  //     uint256 privKey,
-  //     SingleTestConfig memory config
-  //   ) public {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     SwapConfig memory swapConfig = createFuzzySwapConfig(config.swapConfig);
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_usedNonce_fail(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig);
 
-  //     ICLPoolManager.SwapParams memory params = ICLPoolManager.SwapParams({
-  //       zeroForOne: swapConfig.zeroForOne,
-  //       amountSpecified: swapConfig.amountSpecified,
-  //       sqrtPriceLimitX96: swapConfig.sqrtPriceLimitX96
-  //     });
+    // swap twice with the same nonce
+    swapOnlyHook(swapConfig);
 
-  //     privKey = bound(privKey, 1, SECP256K1_ORDER - 1);
-  //     vm.assume(privKey != quoteSignerKey);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        CustomRevert.WrappedError.selector,
+        hook,
+        ICLHooks.beforeSwap.selector,
+        abi.encodeWithSelector(IFFHookNonces.NonceAlreadyUsed.selector, swapConfig.nonce),
+        abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+      )
+    );
+    swapOnlyHook(swapConfig);
+  }
 
-  //     bytes memory signature = getSignature(privKey, getDigest(swapConfig));
-  //     bytes memory hookData = getHookData(swapConfig, signature);
+  /// forge-config: default.fuzz.runs = 20
+  function test_pancakeswap_zeroNonce(
+    PoolConfig memory poolConfig,
+    AddLiquidityConfig memory addLiquidityConfig,
+    SwapConfig memory swapConfig1,
+    SwapConfig memory swapConfig2
+  ) public {
+    initPools(poolConfig);
+    addLiquidityOnlyHook(addLiquidityConfig);
 
-  //     vm.expectRevert(
-  //       abi.encodeWithSelector(
-  //         CustomRevert.WrappedError.selector,
-  //         hook,
-  //         ICLHooks.beforeSwap.selector,
-  //         abi.encodeWithSelector(IKEMHook.InvalidSignature.selector),
-  //         abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-  //       )
-  //     );
-  //     swapRouter.swap(keyWithHook, params, testSettings, hookData);
-  //   }
+    // swap twice with zero nonce
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig1);
+    swapConfig1.nonce = 0;
+    swapOnlyHook(swapConfig1);
 
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_usedNonce_shouldFail(SingleTestConfig memory config)
-  //     public
-  //   {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     config.swapConfig.nonce = bound(config.swapConfig.nonce, 1, type(uint256).max);
-
-  //     swapBothPools(config.swapConfig, false, false, false);
-
-  //     swapBothPools(config.swapConfig, false, false, true);
-  //   }
-
-  //   /// forge-config: default.fuzz.runs = 20
-  //   function test_pancakeswap_exactInput_with_zeroNonce_succeed(SingleTestConfig memory config)
-  //     public
-  //   {
-  //     initPools(config.poolConfig);
-  //     addLiquidityBothPools(config.addLiquidityConfig);
-  //     config.swapConfig.nonce = 0;
-
-  //     swapBothPools(config.swapConfig, false, false, false);
-
-  //     swapBothPools(config.swapConfig, false, false, false);
-  //   }
+    createFuzzySwapConfig(PoolId.unwrap(idWithHook), swapConfig2);
+    swapConfig2.nonce = 0;
+    swapOnlyHook(swapConfig2);
+  }
 }
