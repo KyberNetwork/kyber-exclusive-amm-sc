@@ -17,7 +17,7 @@ contract BaseScript is Script {
 
   event DeployContract(string key, address result);
 
-  address constant CREATE3_DEPLOYER = 0x8Cad6A96B0a287e29bA719257d0eF431Ea6D888B;
+  address constant CREATE3_DEPLOYER = 0xc7c662Fc760FE1d5cB97fd8A68cb43A046da3F7d;
 
   string path;
   string chainId;
